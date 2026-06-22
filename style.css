@@ -1,0 +1,211 @@
+body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
+
+/* 地圖全螢幕 */
+#map { height: 100vh; width: 100%; z-index: 1; }
+
+/* 隱藏數字輸入框箭頭 (排除濃度延遲欄位) */
+input[type=number]:not(#set-time-delay)::-webkit-outer-spin-button,
+input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.hidden { display: none !important; }
+.invisible { visibility: hidden; }
+
+/* --- 面板主體 (Flexbox) --- */
+.info-panel {
+    position: absolute; top: 15px; right: 15px; 
+    z-index: 1000; 
+    
+    display: flex;
+    flex-direction: column; 
+    
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    
+    /* 寬度設定：電腦版 350px */
+    min-width: 350px;
+    
+    /* 電腦版高度限制 */
+    max-height: 75vh !important;
+    
+    padding: 0; 
+    border: 1px solid rgba(0,0,0,0.05);
+    font-size: 14px;
+    color: #333;
+    transition: all 0.3s ease;
+    overflow: hidden; 
+}
+
+/* 標題列 (固定) */
+.panel-header-row { 
+    flex-shrink: 0; 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 12px 16px; 
+    background-color: #f8f9fa; 
+    border-bottom: 1px solid #eee; 
+    z-index: 2;
+}
+.header-left { display: flex; align-items: center; gap: 8px; }
+.panel-title { font-weight: 700; font-size: 16px; color: #222; margin: 0; }
+
+/* 內容區塊 (滾動) */
+.panel-content-wrapper {
+    flex: 1; 
+    overflow-y: auto; 
+    scrollbar-width: thin; 
+    padding: 16px; 
+    min-height: 0; 
+}
+
+/* 折疊按鈕 */
+.toggle-arrow {
+    background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px;
+    transition: transform 0.3s ease;
+    display: inline-block !important; 
+    color: #666;
+}
+.toggle-arrow:hover { color: #000; background-color: #e2e6ea; border-radius: 4px; }
+
+/* 收合狀態 */
+.info-panel.collapsed .toggle-arrow { transform: rotate(-90deg); }
+.info-panel.collapsed .panel-content-wrapper { display: none; }
+.info-panel.collapsed {
+    height: auto;
+    max-height: none !important; 
+    overflow: visible;
+}
+
+/* 按鈕與圖示樣式 */
+.btn-icon { 
+    background: #fff; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer; padding: 4px 8px; font-size: 12px; color: #495057; transition: all 0.2s; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+    display: inline-flex; align-items: center; gap: 4px;
+}
+.btn-icon:hover { background: #e9ecef; color: #000; border-color: #ced4da; }
+
+.icon-svg { width: 14px; height: 14px; color: inherit; }
+
+/* 狀態條 */
+.status-box { margin-bottom: 12px; padding: 8px 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; display: flex; align-items: center; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+.status-text { font-weight: 600; font-size: 14px; }
+.st-offline { background-color: gray; box-shadow: 0 0 0 2px #ddd; }
+.st-active { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+.st-connecting { background-color: #ffc107; box-shadow: 0 0 5px #ffc107; }
+.st-timeout { background-color: #dc3545; box-shadow: 0 0 5px #dc3545; }
+.st-stopped { background-color: #6c757d; }
+
+.data-grid-container { display: grid; grid-template-columns: 45px 1fr; gap: 6px 10px; margin-bottom: 12px; }
+.data-label { color: #666; font-weight: 500; text-align: right; }
+.data-value { color: #111; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+.highlight-blue { color: #007bff; }
+
+.checkbox-row { margin-bottom: 12px; padding-left: 2px; }
+.checkbox-label { cursor: pointer; display: flex; align-items: center; color: #444; }
+.checkbox-label input { margin-right: 8px; }
+
+.threshold-section { border-top: 1px solid #eee; padding-top: 12px; margin-top: 12px; }
+.section-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; color: #444; font-weight: 600; }
+.section-header small { color: #999; font-weight: normal; font-size: 11px; }
+
+/* 閾值設定排版 (左右分散對齊) */
+.th-grid-row { 
+    display: grid; 
+    /* Badge 30px | 1fr 彈性推擠 | Symbol 20px | Input 60px */
+    grid-template-columns: 30px 1fr 20px 60px; 
+    align-items: center; 
+    margin-bottom: 8px; 
+    gap: 4px; 
+}
+
+.th-badge { display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; font-size: 12px; font-weight: bold; color: white; justify-self: center; }
+.bg-green { background-color: #28a745; }
+.bg-yellow { background-color: #ffc107; color: #333; }
+.bg-orange { background-color: #fd7e14; }
+.bg-red { background-color: #ff0000; }
+
+.th-start-val { 
+    text-align: right; color: #555; font-size: 13px; padding-right: 4px; 
+    display: block; width: 100%; box-sizing: border-box;
+}
+
+.th-symbol { 
+    text-align: center; color: #555; font-weight: bold; font-family: monospace; font-size: 13px; 
+}
+
+/* 輸入框 (靠右, 60px, 統一字體) */
+.th-input { 
+    width: 100%; box-sizing: border-box; text-align: left; padding: 3px 6px; 
+    border: 1px solid #ced4da; border-radius: 4px; font-size: 13px; font-family: inherit; color: #495057; background: #fbfbfb; margin: 0; line-height: 1.5; height: 26px; 
+}
+
+.th-static-end { 
+    display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 4px 0 4px 8px; border: none; font-size: 13px; font-family: inherit; font-weight: normal; color: #555; margin: 0; line-height: 1.5; 
+}
+
+.th-input:focus { outline: none; border-color: #80bdff; background: #fff; }
+.msg-container { min-height: 18px; text-align: right; font-size: 12px; margin-top: 4px; }
+.input-error { border-color: #dc3545; background-color: #fff0f0; }
+
+/* 底部按鈕 */
+.bottom-control-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1100; display: flex; gap: 15px; align-items: center; background: rgba(255, 255, 255, 0.9); padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: max-content; }
+.ctrl-btn { border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: all 0.2s; padding: 10px 20px; font-size: 14px; }
+.btn-primary-large { background-color: #28a745; color: white; font-size: 16px; padding: 12px 30px; border-radius: 25px; min-width: 100px; }
+.btn-stop { background-color: #dc3545 !important; }
+.btn-secondary { background-color: #6c757d; color: white; }
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+.modal-content { background: white; padding: 20px; border-radius: 8px; width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+.modal-header h3 { margin: 0; font-size: 18px; }
+.close-btn { cursor: pointer; font-size: 24px; color: #aaa; }
+.modal-form-grid { display: grid; grid-template-columns: 120px 1fr; gap: 15px 12px; align-items: center; padding: 10px 0; }
+.modal-form-grid label { text-align: right; font-weight: 600; color: #555; font-size: 14px; }
+.form-input { width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; color: #495057; background-color: #fff; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
+.form-input:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15); }
+.form-group { display: none; }
+.modal-footer { text-align: right; margin-top: 10px; }
+.btn-primary { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+
+/* Tooltip & Popup */
+.custom-tooltip { background: rgba(0, 0, 0, 0.85); border: 1px solid #666; border-radius: 5px; color: #fff; padding: 6px 10px; font-size: 13px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.leaflet-tooltip-top:before { border-top-color: rgba(0, 0, 0, 0.85); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: rgba(0, 0, 0, 0.85) !important; color: white !important; box-shadow: 0 3px 14px rgba(0,0,0,0.4); }
+.leaflet-popup-content { color: white !important; font-size: 13px; line-height: 1.5; margin: 12px; }
+.leaflet-popup-close-button { color: #ccc !important; }
+.leaflet-popup-close-button:hover { color: #fff !important; }
+
+/* 手機版專用介面 */
+@media (max-width: 768px) {
+    .info-panel {
+        top: 0; left: 0; right: 0;
+        width: auto;
+        margin: 10px;
+        min-width: unset; 
+        border-radius: 8px;
+        max-height: 50dvh !important; 
+    }
+
+    .toggle-arrow { font-size: 16px; padding: 0 8px 0 0; }
+    
+    .bottom-control-bar { 
+        bottom: 20px; 
+        padding: 8px 20px; 
+        gap: 12px; 
+        width: max-content;
+        box-sizing: border-box; 
+        justify-content: center; 
+    }
+
+    .btn-primary-large { padding: 10px 20px; font-size: 15px; }
+    .ctrl-btn { padding: 8px 12px; font-size: 13px; }
+
+    .leaflet-top { top: 80px; transition: top 0.3s ease; }
+    
+    .panel-title { font-size: 15px; }
+    .btn-icon { font-size: 11px; padding: 4px 6px; }
+}

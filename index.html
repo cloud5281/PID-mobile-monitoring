@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>即時移動測繪</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    
+    <link rel="icon" href="./image/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="info-panel" id="main-panel">
+        <div class="panel-header-row">
+            <div class="header-left">
+                <button id="panel-toggle-btn" class="toggle-arrow">▼</button>
+                <span class="panel-title">狀態監控</span>
+            </div>
+            <button id="btn-open-settings" class="btn-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg">
+                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.48.48 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.21.07.47-.01.59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+                系統參數設定
+            </button>
+        </div>
+        
+        <div id="panel-content" class="panel-content-wrapper">
+            <div class="status-box">
+                <span id="status-dot" class="status-dot st-offline"></span>
+                <span id="connection-text" class="status-text">未連線</span>
+            </div>
+
+            <div class="data-grid-container">
+                <div class="data-label">專案:</div>
+                <div class="data-value highlight-blue" id="currentPath">-</div>
+
+                <div class="data-label">時間:</div>
+                <div class="data-value" id="time">-</div>
+
+                <div class="data-label">座標:</div>
+                <div class="data-value" id="coords">-</div>
+
+                <div class="data-label">濃度:</div>
+                <div class="data-value" id="concentration">-</div>
+            </div>
+            
+            <div class="checkbox-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="autoCenter" checked> 自動跟隨
+                </label>
+            </div>
+
+            <div class="threshold-section">
+                <div class="section-header">
+                    <span id="threshold-title-text">濃度閾值設定</span>
+                    <small>(Enter 儲存)</small>
+                </div>
+                
+                <div class="th-grid-row">
+                    <span class="th-badge bg-green">綠</span>
+                    <span></span> <span class="th-symbol">&lt;</span>
+                    <input type="number" id="val-a" value="50" class="th-input">
+                </div>
+
+                <div class="th-grid-row">
+                    <span class="th-badge bg-yellow">黃</span>
+                    <span id="disp-a" class="th-start-val">200</span>
+                    <span class="th-symbol">~</span>
+                    <input type="number" id="val-b" value="100" class="th-input">
+                </div>
+
+                <div class="th-grid-row">
+                    <span class="th-badge bg-orange">橙</span>
+                    <span id="disp-b" class="th-start-val">350</span>
+                    <span class="th-symbol">~</span>
+                    <input type="number" id="val-c" value="150" class="th-input">
+                </div>
+
+                <div class="th-grid-row">
+                    <span class="th-badge bg-red">紅</span>
+                    <span></span> <span class="th-symbol">&ge;</span>
+                    <span id="disp-c" class="th-static-end">500</span>
+                </div>
+
+                <div class="msg-container">
+                    <span id="msg-box"></span>
+                </div>
+            </div>
+
+            <div class="threshold-section">
+                <div class="section-header">
+                    <span>地圖點位大小</span>
+                    <span id="radius-value" style="font-weight:bold; color:#007bff; font-family: monospace;">3</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding-bottom: 4px;">
+                    <span style="font-size: 12px; color: #999;">1</span>
+                    <input type="range" id="radius-slider" min="1" max="20" value="3" step="1" style="flex: 1; cursor: pointer; height: 4px;">
+                    <span style="font-size: 12px; color: #999;">20</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>設定</h3>
+                <span id="btn-close-modal" class="close-btn">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-form-grid">
+                    <label>專案名稱</label>
+                    <input type="text" id="set-project-id" class="form-input" placeholder="例如: 2026-01-01">
+                    <label>GPS 連線 IP</label>
+                    <input type="text" id="set-gps-ip" class="form-input" placeholder="192.168.x.x">
+                    <label>GPS 連線 Port</label>
+                    <input type="number" id="set-gps-port" class="form-input" placeholder="11123">
+                    
+                    <label>儀器連線 Port</label>
+                    <select id="set-conc-port" class="form-input">
+                        <option value="">正在偵測本機設備...</option>
+                    </select>
+
+                    <label>濃度單位</label>
+                    <input type="text" id="set-conc-unit" class="form-input" placeholder="ppm, ppb...">
+                    <label>濃度延遲 (秒)</label>
+                    <input type="number" id="set-time-delay" class="form-input" placeholder="例如: 3" step="1" min="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-save-backend" class="btn-primary">儲存並應用</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="event-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="width: 320px;">
+            <div class="modal-header">
+                <h3 style="margin: 0; font-size: 18px;">註記內容</h3>
+                <span id="btn-close-event-modal" class="close-btn">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 12px;">
+                    <label style="font-weight:bold; font-size:14px; color:#555;">情況描述：</label>
+                    <textarea id="event-note" rows="3" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ced4da; margin-top:6px; box-sizing:border-box; font-family:inherit; resize:vertical;" placeholder="例如：聞到明顯異味、A機臺旁..."></textarea>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="font-weight:bold; font-size:14px; color:#555;">現場照片：</label>
+                    <input type="file" id="event-photo" accept="image/*" multiple style="width:100%; margin-top:6px; font-size:13px;">
+                    <div id="event-photo-preview-container" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="text-align: center;">
+                <button id="btn-save-event" class="btn-primary" style="width:100%; font-size:15px; padding:10px;">儲存註記</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lightbox-modal" class="modal-overlay hidden" style="z-index: 9999; background: rgba(0,0,0,0.9); flex-direction: column; justify-content: center; align-items: center;">
+        <span id="btn-close-lightbox" style="position: absolute; top: 20px; right: 30px; font-size: 40px; color: white; cursor: pointer; text-shadow: 0 0 5px black;">&times;</span>
+        <img id="lightbox-img" style="max-width: 95%; max-height: 90%; border-radius: 8px; object-fit: contain; box-shadow: 0 0 20px rgba(0,0,0,0.5);">
+    </div>
+
+    <div id="bottom-control-bar" class="bottom-control-bar">
+        <button id="btn-upload" class="ctrl-btn btn-secondary">上傳</button>
+        <button id="btn-start" class="ctrl-btn btn-primary-large">開始</button>
+        <button id="btn-download" class="ctrl-btn btn-secondary">下載</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
