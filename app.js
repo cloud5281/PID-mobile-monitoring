@@ -7,8 +7,17 @@ Chart.register(...registerables, zoomPlugin);
 
 const Config = (() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const firebaseId = urlParams.get('id') || "real-time-gps-84c8a"; 
+    const defaultId = "real-time-gps-84c8a";
+    const firebaseId = urlParams.get('id') || defaultId; 
     const projectPath = urlParams.get('path') || "test_project";
+    const initialRole = urlParams.get('role');
+    let userRole = initialRole === 'admin' ? 'admin' : 'guest';
+
+    if (initialRole === 'admin') {
+        sessionStorage.setItem('user_role', 'admin');
+    } else if (sessionStorage.getItem('user_role') === 'admin') {
+        userRole = 'admin';
+    }
 
     let dynamicKey = urlParams.get('key');
     if (dynamicKey) {
@@ -21,25 +30,31 @@ const Config = (() => {
         if (dynamicKey) localStorage.setItem('saved_api_key', dynamicKey);
     }
 
+    let cleanUrl = window.location.pathname + '?path=' + projectPath; 
+    window.history.replaceState(null, '', cleanUrl);
+
     if (!firebaseId || !projectPath) {
         alert("網址參數錯誤");
-    } else {
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    } 
     return {
         firebaseProjectId: firebaseId,
         apiKey: dynamicKey,
         dbRootPath: projectPath, 
-        wifiIp: "", gpsPort: "", concUnit: "", concPort: "",
+        userRole: userRole,
+        gpsIp: "", gpsPort: "", 
+        concInstrument: "TSI",
+        concSerial: "", concBaudrate: 9600,
+        concIp: "", concPort: "",
+        concUnit: "",
         timeDelay: 0, 
         dbURL: urlParams.get('db') || null,
         ZOOM_LEVEL: 17, 
-        COLORS: { GREEN: '#28a745', YELLOW: '#ffc107', ORANGE: '#fd7e14', RED: '#ff0000' }
+        COLORS: { GREEN: '#28a745', YELLOW: '#ffe600', ORANGE: '#fd7e14', RED: '#dd0000' }
     };
 })();
 
 class MapManager {
-    constructor() {
+    constructor(initLat = 25.0330, initLon = 121.5654) {
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         });
@@ -49,7 +64,7 @@ class MapManager {
         });
 
         this.map = L.map('map', {
-            center: [25.0330, 121.5654],
+            center: [initLat, initLon],
             zoom: Config.ZOOM_LEVEL,
             layers: [osmLayer],
             zoomControl: true
@@ -71,6 +86,7 @@ class MapManager {
         this.pathLine = L.polyline([], {color: 'blue', weight: 4}); 
         this.historyLayer = L.layerGroup().addTo(this.map);
         this.coordsArray = [];
+        this.allMarkers = [];
         
         this.timestampToLayer = new Map();
         this.lastHighlightedLayer = null;
@@ -122,10 +138,17 @@ class MapManager {
 
             pin.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
-                const hData = getHistoryRecordFn(eventData.timestamp) || {
-                    lat: eventData.lat, lon: eventData.lon, timestamp: eventData.timestamp, conc: '?', conc_unit: ''
+                const hData = getHistoryRecordFn(eventData.timestamp);
+                
+                // 🔥 確保跳轉的座標以「大頭針原本紀錄的精確座標」為準，避免被 Excel 截斷秒數的歷史點拉走
+                const targetData = {
+                    lat: eventData.lat,
+                    lon: eventData.lon,
+                    timestamp: eventData.timestamp,
+                    conc: hData ? hData.conc : '?',
+                    conc_unit: hData ? hData.conc_unit : ''
                 };
-                this.focusOnPoint(hData);
+                this.focusOnPoint(targetData);
             });
 
             this.eventPins.set(eventData.timestamp, pin);
@@ -144,7 +167,7 @@ class MapManager {
 
     setPointRadius(radius) {
         this.pointRadius = radius;
-        this.historyLayer.eachLayer((layer) => {
+        this.allMarkers.forEach((layer) => {
             if (layer !== this.lastHighlightedLayer) {
                 if (layer.setRadius) layer.setRadius(radius);
             }
@@ -213,21 +236,23 @@ class MapManager {
 
     _getTooltipContent(data) {
         const unit = data.conc_unit || Config.concUnit || "";
+        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
         return `
             <div style="text-align: left; line-height: 1.5;">
                 <span>⏰ 時間:</span> ${data.timestamp}<br>
                 <span>📍 經緯:</span> ${data.lon.toFixed(6)}, ${data.lat.toFixed(6)}<br>
-                <span>🧪 濃度:</span> ${data.conc} ${unit}<br>
+                <span>🧪 濃度:</span> ${concStr}<br>
             </div>`;
     }
 
     _getPopupContent(data) {
         const unit = data.conc_unit || Config.concUnit || "";
+        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
         let html = `
             <div style="text-align: left; line-height: 1.5; min-width: 200px; max-width: 280px;">
                 <span>⏰ 時間:</span> ${data.timestamp}<br>
                 <span>📍 經緯:</span> ${data.lon.toFixed(6)}, ${data.lat.toFixed(6)}<br>
-                <span>🧪 濃度:</span> ${data.conc} ${unit}<br>
+                <span>🧪 濃度:</span> ${concStr}<br>
         `;
         
         const ev = this.eventsByTime[data.timestamp];
@@ -250,7 +275,7 @@ class MapManager {
             html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 2; padding:6px; font-size:13px; background:#4a4a4a; color:#fff; border:none; border-radius:4px; cursor:pointer;">編輯</button>`;
             html += `<button onclick="document.dispatchEvent(new CustomEvent('delete-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 1; padding:6px; font-size:13px; background:#dc3545; color:#fff; border:none; border-radius:4px; cursor:pointer;">刪除</button>`;
             html += `</div>`;
-            
+
         } else {
             html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="width:100%; padding:6px; font-size:13px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">新增註記</button>`;
         }
@@ -259,17 +284,57 @@ class MapManager {
         return html;
     }
 
+    requestSort() {
+        if (this.sortTimeout) return;
+        // 防抖(Debounce)：如果短時間內加入大量點(例如載入歷史資料)，只會在最後執行一次排序，避免網頁卡頓
+        this.sortTimeout = setTimeout(() => {
+            this.sortPointsByConcentration();
+            this.sortTimeout = null;
+        }, 100);
+    }
+    sortPointsByConcentration() {
+        const layers = [];
+        this.historyLayer.eachLayer(layer => {
+            if (layer.concValue !== undefined && this.map.hasLayer(layer)) {
+                layers.push(layer);
+            }
+        });
+
+        // 依照濃度排序：灰點(-1)放最下層，濃度數值越大放越上面
+        layers.sort((a, b) => {
+            const valA = (a.concValue != null && a.concValue >= 0) ? a.concValue : -1;
+            const valB = (b.concValue != null && b.concValue >= 0) ? b.concValue : -1;
+            return valA - valB;
+        });
+
+        // 依序拉到最上層 (SVG 的特性是越晚 bringToFront 的元素會在最頂部)
+        layers.forEach(layer => {
+            if (layer.bringToFront) {
+                layer.bringToFront();
+            }
+        });
+
+        // 如果目前使用者有點擊了某個高亮點，確保該點在最最最頂層
+        if (this.lastHighlightedLayer && this.lastHighlightedLayer.bringToFront) {
+            this.lastHighlightedLayer.bringToFront();
+        }
+    }
+
     addHistoryPoint(data, getColorFn) {
+        if (data.status === 'GPS Lost' || data.status === 'All Lost' || data.status === 'V') {
+            return;
+        }
+
         if (data.lat !== undefined && data.lat !== null && data.lon !== undefined && data.lon !== null) {
             const pos = [data.lat, data.lon];
             this.coordsArray.push(pos);
             this.pathLine.setLatLngs(this.coordsArray);
-
-            if (data.conc === undefined || data.conc === null || data.conc < 0) {
-                return;
+            
+            let color = '#999999';
+            if (data.conc !== undefined && data.conc !== null && data.conc >= 0 && data.status !== 'Conc Lost') {
+                color = getColorFn(data.conc);
             }
 
-            const color = getColorFn(data.conc);
             const hasEvent = !!this.eventsByTime[data.timestamp];
             
             const circle = L.circleMarker(pos, { 
@@ -282,6 +347,7 @@ class MapManager {
             });
             circle.concValue = data.conc;
             circle.timestamp = data.timestamp;
+            this.allMarkers.push(circle);
 
             if (data.timestamp) {
                 this.timestampToLayer.set(data.timestamp, circle);
@@ -306,16 +372,13 @@ class MapManager {
     }
 
     updateVisibleHistory(cutoffTime) {
-        this.timestampToLayer.forEach((layer, timestamp) => {
-            if (timestamp <= cutoffTime) {
-                // 時間到了：如果地圖上沒有這個點，就把它加回地圖
+        this.allMarkers.forEach((layer) => {
+            if (layer.timestamp <= cutoffTime) {
                 if (!this.historyLayer.hasLayer(layer)) {
                     this.historyLayer.addLayer(layer);
                 }
-                // 確保它是清楚可見的
                 layer.setStyle({ opacity: 1, fillOpacity: 0.9 });
             } else {
-                // 時間還沒到：如果它還在地圖上，直接把它「拔除」！(滑鼠就絕對摸不到了)
                 if (this.historyLayer.hasLayer(layer)) {
                     this.historyLayer.removeLayer(layer);
                 }
@@ -332,36 +395,25 @@ class MapManager {
         });
     }
 
-    // 🔥 配合上述修改：更新顏色時，也要確保「暫時被拔除的點」也能更新到新閾值
     refreshColors(getColorFn) {
-        this.timestampToLayer.forEach((layer, timestamp) => {
-            if (layer.concValue !== undefined) {
-                if (layer === this.lastHighlightedLayer) return; 
-                const hasEvent = !!this.eventsByTime[timestamp];
-                const color = (layer.concValue != null && layer.concValue >= 0) ? getColorFn(layer.concValue) : '#999999';
-                layer.setStyle({ 
-                    fillColor: color,
-                    stroke: hasEvent,
-                    color: hasEvent ? '#000' : undefined,
-                    weight: hasEvent ? 2 : 0
-                });
-            }
-        });
-    }
-
-    refreshColors(getColorFn) {
-        this.historyLayer.eachLayer((layer) => {
+        this.allMarkers.forEach((layer) => {
             if (layer.concValue !== undefined) {
                 if (layer === this.lastHighlightedLayer) return; 
                 const hasEvent = !!this.eventsByTime[layer.timestamp];
+                const color = (layer.concValue != null && layer.concValue >= 0) ? getColorFn(layer.concValue) : '#999999';
+                
+                // 強制給定完整的 SVG 屬性，防呆 Leaflet 渲染器
                 layer.setStyle({ 
-                    fillColor: getColorFn(layer.concValue),
+                    fillColor: color,
+                    fillOpacity: 0.9,
+                    fill: true,
                     stroke: hasEvent,
-                    color: hasEvent ? '#000' : undefined,
+                    color: hasEvent ? '#000' : 'transparent',
                     weight: hasEvent ? 2 : 0
                 });
             }
         });
+        this.requestSort();
     }
 
     focusOnPoint(data) {
@@ -436,7 +488,11 @@ class UIManager {
         this.targetTime = null;
 
         this.initDOM();
-        this.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
+        if (localStorage.getItem('is_switching') === 'true') {
+            this.setInterfaceMode('switching', "專案切換中... (約 1 分鐘)", "gray", "offline");
+        } else {
+            this.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
+        }
         this.bindEvents();
         this.startClock();
         this.initChart();
@@ -466,10 +522,13 @@ class UIManager {
             btnSaveBackend: document.getElementById('btn-save-backend'),
             backendInputs: {
                 project: document.getElementById('set-project-id'),
-                wifi_ip: document.getElementById('set-gps-ip'),
-                port: document.getElementById('set-gps-port'),
+                gps_ip: document.getElementById('set-gps-ip'),
+                gps_port: document.getElementById('set-gps-port'),
+                conc_instrument: document.getElementById('set-conc-instrument'),
+                conc_serial: document.getElementById('set-conc-serial'),
+                conc_baudrate: document.getElementById('set-conc-baudrate'), 
+                conc_ip: document.getElementById('set-conc-ip'),
                 conc_port: document.getElementById('set-conc-port'),
-                unit: document.getElementById('set-conc-unit'),
                 time_delay: document.getElementById('set-time-delay')
             },
             btnStart: document.getElementById('btn-start'),
@@ -492,7 +551,14 @@ class UIManager {
 
             lightboxModal: document.getElementById('lightbox-modal'),
             lightboxImg: document.getElementById('lightbox-img'),
-            btnCloseLightbox: document.getElementById('btn-close-lightbox')
+            btnCloseLightbox: document.getElementById('btn-close-lightbox'),
+
+            // 🔥 新增風標相關的 DOM 元素
+            windPanel: document.getElementById('wind-compass-panel'),
+            windArrow: document.getElementById('wind-arrow'),
+            windStationName: document.getElementById('wind-station-name'),
+            windSpeedText: document.getElementById('wind-speed-text'),
+            windUpdateTime: document.getElementById('wind-update-time')
         };
         
         this.eventImagesBase64 = []; 
@@ -515,8 +581,29 @@ class UIManager {
         if (this.els.autoCenter) this.els.autoCenter.checked = true;
         this.injectChartUI();
 
+        if (this.els.radiusSlider && this.els.radiusValue) {
+            this.els.radiusSlider.value = this.mapManager.pointRadius;
+            this.els.radiusValue.innerText = this.mapManager.pointRadius;
+        }
+
         if (window.innerWidth <= 768 && this.els.mainPanel) {
             this.els.mainPanel.classList.add('collapsed');
+        }
+    }
+
+    // 根據下拉選單(instrument)切換顯示/隱藏
+    toggleInstrumentFields() {
+        if (!this.els.backendInputs.conc_instrument) return;
+        const inst = this.els.backendInputs.conc_instrument.value;
+        const pidFields = document.querySelectorAll('.pid-field');
+        const tsiFields = document.querySelectorAll('.tsi-field');
+        
+        if (inst === 'PID') {
+            pidFields.forEach(el => el.classList.remove('hidden'));
+            tsiFields.forEach(el => el.classList.add('hidden'));
+        } else {
+            pidFields.forEach(el => el.classList.add('hidden'));
+            tsiFields.forEach(el => el.classList.remove('hidden'));
         }
     }
 
@@ -690,6 +777,7 @@ class UIManager {
             clearInterval(this.playbackInterval);
             this.playbackInterval = null;
         }
+        this.mapManager.requestSort();
     }
 
     renderPlaybackFrame(index) {
@@ -715,19 +803,28 @@ class UIManager {
             this.mapManager.updateCurrentPosition(record.lat, record.lon, this.els.autoCenter.checked);
         }
 
+        this.updateWindCompass(record);
+
         if (this.chart) {
             const slicedData = this.sortedHistoryData.slice(0, index + 1);
-            const values = slicedData.map(d => (d.conc !== null && d.conc >= 0) ? d.conc : null);
+            const values = slicedData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') ? d.conc : null);
             
             let currentMax = 0;
-            if (values.length > 0) currentMax = Math.max(...values);
+            let currentMaxUnit = Config.concUnit || "";
+            for (let i = 0; i < slicedData.length; i++) {
+                let d = slicedData[i];
+                if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') {
+                    if (d.conc > currentMax) {
+                        currentMax = d.conc;
+                        if (d.conc_unit) currentMaxUnit = d.conc_unit; // 記錄最大值當下的單位
+                    } else if (currentMax === 0 && d.conc_unit) {
+                        currentMaxUnit = d.conc_unit; // 若最大值還是0，先隨便備份一個有效單位
+                    }
+                }
+            }
 
             if (this.els.concMax) {
-                let unit = Config.concUnit || "";
-                if (!unit && slicedData.length > 0) {
-                    unit = slicedData[slicedData.length - 1].conc_unit || "";
-                }
-                this.els.concMax.innerText = `Max: ${currentMax} ${unit}`;
+                this.els.concMax.innerText = `Max: ${currentMax} ${currentMaxUnit}`;
                 this.els.concMax.style.display = "block";
             }
 
@@ -843,10 +940,11 @@ class UIManager {
 
         if (!this.chart || !historyData) return;
         
-        const rawSorted = Object.values(historyData).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        const rawSorted = Object.values(historyData)
+            .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
         this.sortedHistoryData = rawSorted;
 
-        const allValues = this.sortedHistoryData.map(d => (d.conc !== null && d.conc >= 0) ? d.conc : null);
+        const allValues = this.sortedHistoryData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') ? d.conc : null);
         
         if (this.els.playbackSlider) {
             this.els.playbackSlider.max = this.sortedHistoryData.length - 1;
@@ -859,8 +957,17 @@ class UIManager {
         }
 
         let globalMax = 0;
-        if (allValues.length > 0) {
-            globalMax = Math.max(...allValues);
+        let globalMaxUnit = Config.concUnit || ""; 
+        for (let i = 0; i < this.sortedHistoryData.length; i++) {
+            let d = this.sortedHistoryData[i];
+            if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') {
+                if (d.conc > globalMax) {
+                    globalMax = d.conc;
+                    if (d.conc_unit) globalMaxUnit = d.conc_unit; 
+                } else if (globalMax === 0 && d.conc_unit) {
+                    globalMaxUnit = d.conc_unit; 
+                }
+            }
         }
         
         this.chart.options.scales.y.suggestedMax = (globalMax > 0) ? globalMax * 1.05 : 10;
@@ -869,11 +976,7 @@ class UIManager {
 
         if (this.els.concMax) {
             if (globalMax > 0) {
-                let unit = Config.concUnit || "";
-                if (!unit && this.sortedHistoryData.length > 0) {
-                    unit = this.sortedHistoryData[this.sortedHistoryData.length - 1].conc_unit || "";
-                }
-                this.els.concMax.innerText = `Max: ${globalMax} ${unit}`;
+                this.els.concMax.innerText = `Max: ${globalMax} ${globalMaxUnit}`;
                 this.els.concMax.style.display = "block";
             } else {
                 this.els.concMax.style.display = "none";
@@ -886,22 +989,69 @@ class UIManager {
             this.chart.update('none');
             
             if (this.sortedHistoryData.length > 0) {
-                const lastTs = this.sortedHistoryData[this.sortedHistoryData.length - 1].timestamp;
-                this.mapManager.updateVisibleHistory(lastTs);
+                const lastRecord = this.sortedHistoryData[this.sortedHistoryData.length - 1];
+                this.mapManager.updateVisibleHistory(lastRecord.timestamp);
+
+                if (lastRecord.lat != null && lastRecord.lon != null) {
+                    // 覆寫小人座標
+                    this.mapManager.updateCurrentPosition(lastRecord.lat, lastRecord.lon, this.els.autoCenter.checked);
+                    // 同步覆寫右側的狀態面板，確保面板能正確顯示「Conc 訊號中斷」
+                }
+                
+                if (this.currentMode === 'recording') {
+                    this.updateRealtimeData(lastRecord);
+                }
+
+                this.updateWindCompass(lastRecord);
             }
         }
     }
 
+    // 🔥 新增：負責處理風標邏輯的方法
+    updateWindCompass(data) {
+        if (!data || data.wind_dir === undefined || data.wind_speed === undefined) {
+            this.els.windPanel.classList.add('hidden');
+            return;
+        }
+
+        // 如果有資料，就顯示面板
+        this.els.windPanel.classList.remove('hidden');
+
+        // 更新文字資訊
+        this.els.windStationName.innerText = data.station_name || "未知測站";
+        
+        // 為了避免時間太長，只擷取 時:分 (例如從 "2026-07-22T10:50:00+08:00" 擷取出 "10:50")
+        let formattedTime = "--:--";
+        if (data.timestamp) {
+            // 如果後端有直接傳時間，優先使用
+            const timeMatch = data.timestamp.match(/\d{2}:\d{2}/);
+            if (timeMatch) formattedTime = timeMatch[0];
+        }
+        this.els.windUpdateTime.innerText = `更新於 ${formattedTime}`;
+        this.els.windSpeedText.innerText = `${data.wind_speed} m/s`;
+
+        // 更新箭頭旋轉角度
+        // 氣象風向 0 度是北風（風從北邊吹來，箭頭應該朝下/南邊）
+        // 我們的 SVG 箭頭預設是朝上（0度），所以加上 180 度讓它順著風吹的方向指
+        const rotationDegree = data.wind_dir + 180;
+        this.els.windArrow.style.transform = `rotate(${rotationDegree}deg)`;
+    }
+
     syncConfigFromBackend(data) {
         if (!data) return;
-        Config.wifiIp = data.wifi_ip || ""; 
+        Config.gpsIp = data.gps_ip || ""; 
         Config.gpsPort = data.gps_port || ""; 
-        Config.concUnit = data.conc_unit || "";
+
+        Config.concInstrument = data.conc_instrument || "TSI"; // 🔥 接收儀器名稱
+        Config.concSerial = data.conc_serial || "";
+        Config.concBaudrate = data.conc_baudrate || 9600;
+        Config.concIp = data.conc_ip || "";
         Config.concPort = data.conc_port || "";
+        Config.concUnit = data.conc_unit || "";
+
         Config.timeDelay = data.time_delay !== undefined ? data.time_delay : 0; 
         
         if (!this.els.modal.classList.contains('hidden')) this.fillSettingsInputs();
-        if (this.chartTitleTextEl) this.chartTitleTextEl.innerText = `歷史濃度趨勢${Config.concUnit ? ` (${Config.concUnit})` : ""}`;
         
         if (this.els.thresholdTitle) {
             const unitText = Config.concUnit ? ` (${Config.concUnit})` : "";
@@ -914,7 +1064,10 @@ class UIManager {
         if (data) {
             this.thresholds = { a: parseFloat(data.a), b: parseFloat(data.b), c: parseFloat(data.c) };
         } else {
-            this.saveThresholdSettings(true); return; 
+            if (Config.userRole === 'admin') {
+                this.saveThresholdSettings(true); 
+            }
+            return; 
         }
         if (document.activeElement !== this.els.inputs.a && document.activeElement !== this.els.inputs.b && document.activeElement !== this.els.inputs.c) {
             this.els.inputs.a.value = this.thresholds.a;
@@ -932,25 +1085,33 @@ class UIManager {
     
     fillSettingsInputs() { 
         this.els.backendInputs.project.value = Config.dbRootPath; 
-        this.els.backendInputs.wifi_ip.value = Config.wifiIp; 
-        this.els.backendInputs.port.value = Config.gpsPort; 
-        this.els.backendInputs.unit.value = Config.concUnit; 
-        this.els.backendInputs.time_delay.value = Config.timeDelay; 
+        this.els.backendInputs.gps_ip.value = Config.gpsIp; 
+        this.els.backendInputs.gps_port.value = Config.gpsPort;
+
+        if (this.els.backendInputs.conc_instrument) {
+            this.els.backendInputs.conc_instrument.value = Config.concInstrument; 
+            this.toggleInstrumentFields(); // 確保每次打開時，顯示的是正確儀器的欄位
+        }
+
+        if (this.els.backendInputs.conc_baudrate) this.els.backendInputs.conc_baudrate.value = Config.concBaudrate;
+        if (this.els.backendInputs.conc_ip) this.els.backendInputs.conc_ip.value = Config.concIp;
+        if (this.els.backendInputs.conc_port) this.els.backendInputs.conc_port.value = Config.concPort;
+        if (this.els.backendInputs.time_delay) this.els.backendInputs.time_delay.value = Config.timeDelay;
         
-        if (Config.concPort) {
+        if (this.els.backendInputs.conc_serial) {
             let exists = false;
-            for (let i = 0; i < this.els.backendInputs.conc_port.options.length; i++) {
-                if (this.els.backendInputs.conc_port.options[i].value === Config.concPort) {
-                    exists = true; break;
+            for (let i = 0; i < this.els.backendInputs.conc_serial.options.length; i++) {
+                if (this.els.backendInputs.conc_serial.options[i].value === Config.concSerial) {
+                    exists = true; 
+                    break;
                 }
             }
-            if (!exists) {
-                const opt = document.createElement('option');
-                opt.value = Config.concPort;
-                opt.innerText = Config.concPort + " (目前設定)";
-                this.els.backendInputs.conc_port.appendChild(opt);
+            if (exists) {
+                this.els.backendInputs.conc_serial.value = Config.concSerial;
             }
-            this.els.backendInputs.conc_port.value = Config.concPort;
+            else {
+                this.els.backendInputs.conc_serial.selectedIndex = 0;
+            }
         }
     }
 
@@ -1028,22 +1189,38 @@ class UIManager {
     bindEvents() {
         this.els.btnOpenSettings.addEventListener('click', () => { this.fillSettingsInputs(); this.els.modal.classList.remove('hidden'); });
         this.els.btnCloseModal.addEventListener('click', () => { this.els.modal.classList.add('hidden'); });
+        if (this.els.backendInputs.conc_instrument) {
+            this.els.backendInputs.conc_instrument.addEventListener('change', () => this.toggleInstrumentFields());
+        }
         
         this.els.btnSaveBackend.addEventListener('click', () => {
-            const p = this.els.backendInputs.project.value.trim(); 
-            const i = this.els.backendInputs.wifi_ip.value.trim(); 
-            const pt = this.els.backendInputs.port.value.trim(); 
-            const u = this.els.backendInputs.unit.value.trim(); 
-            const td = this.els.backendInputs.time_delay ? this.els.backendInputs.time_delay.value.trim() : ""; 
-            const cp = this.els.backendInputs.conc_port ? this.els.backendInputs.conc_port.value : "";
-            
             const updateData = {}; 
-            if (p) updateData.project_name = p; 
-            if (i) updateData.wifi_ip = i; 
-            if (pt) updateData.gps_port = pt; 
-            if (u) updateData.conc_unit = u; 
-            if (td !== "") updateData.time_delay = parseFloat(td); 
+
+            const p = this.els.backendInputs.project.value.trim(); 
+
+            const gi = this.els.backendInputs.gps_ip.value.trim(); 
+            const gp = this.els.backendInputs.gps_port.value.trim(); 
+            
+            const inst = this.els.backendInputs.conc_instrument ? this.els.backendInputs.conc_instrument.value : "TSI"; 
+            updateData.conc_instrument = inst;
+            const cs = this.els.backendInputs.conc_serial ? this.els.backendInputs.conc_serial.value : "";
+            const cb = this.els.backendInputs.conc_baudrate ? this.els.backendInputs.conc_baudrate.value : "";
+            const ci = this.els.backendInputs.conc_ip ? this.els.backendInputs.conc_ip.value.trim() : "";
+            const cp = this.els.backendInputs.conc_port ? this.els.backendInputs.conc_port.value : "";
+            const td = this.els.backendInputs.time_delay ? this.els.backendInputs.time_delay.value.trim() : ""; 
+            
+            if (p) updateData.project_name = p;
+
+            if (gi) updateData.gps_ip = gi; 
+            if (gp) updateData.gps_port = gp; 
+            
+            if (inst) updateData.conc_instrument = inst;
+            if (cs) updateData.conc_serial = cs;
+            if (cb) updateData.conc_baudrate = cb;
+            if (ci) updateData.conc_ip = ci; 
             if (cp) updateData.conc_port = cp;
+            
+            if (td !== "") updateData.time_delay = parseFloat(td); 
             
             if (Object.keys(updateData).length === 0) { alert("未輸入變更"); return; } 
             
@@ -1063,6 +1240,9 @@ class UIManager {
                 if (isProjectChanged) { 
                     const url = new URL(window.location.href); 
                     url.searchParams.set('path', updateData.project_name); 
+                    if (Config.userRole === 'admin') {
+                        url.searchParams.set('role', 'admin');
+                    }
                     localStorage.setItem('is_switching', 'true'); 
                     window.location.href = url.toString(); 
                 } else { 
@@ -1083,7 +1263,11 @@ class UIManager {
         
         Object.values(this.els.inputs).forEach(input => {
             input.addEventListener('blur', () => this.saveThresholdSettings());
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); this.saveThresholdSettings(); } });
+            input.addEventListener('keydown', (e) => { 
+                if (e.key === 'Enter') { 
+                    input.blur(); 
+                } 
+            });
         });
 
         if (this.els.radiusSlider) {
@@ -1273,9 +1457,11 @@ class UIManager {
     }
 
     updateRealtimeData(data) {
-        if (!data) {
+        if (!data || Object.keys(data).length === 0) {
             this.els.coords.innerText = "-";
+            this.els.coords.style.color = 'black';
             this.els.conc.innerText = "-";
+            this.els.conc.style.color = 'black';
             return;
         }
 
@@ -1306,6 +1492,7 @@ class UIManager {
     }
 
     setInterfaceMode(mode, statusText, statusColor = 'gray', statusClass = 'offline') {
+        this.currentMode = mode;
         const thresholdInputs = Object.values(this.els.inputs);
         this.els.statusText.innerText = statusText;
         this.els.statusText.style.color = statusColor;
@@ -1350,6 +1537,7 @@ class UIManager {
                 if (this.els.playbackPanel) this.els.playbackPanel.style.display = 'flex';
                 
                 this.isRecording = false;
+                this.mapManager.requestSort();
                 break;
 
             case 'offline':
@@ -1359,19 +1547,276 @@ class UIManager {
                 this.els.btnOpenSettings.classList.remove('hidden');
                 
                 if (this.els.playbackPanel) this.els.playbackPanel.style.display = 'flex';
+                this.mapManager.requestSort();
                 break;
 
             case 'switching':
                 this.els.controlBar.style.display = 'none';
                 this.els.btnOpenSettings.classList.add('hidden');
+                this.els.btnUpload.classList.add('hidden');
+                this.els.btnDownload.classList.add('hidden');
                 thresholdInputs.forEach(input => input.disabled = true);
                 break;
+        }
+
+        if (Config.userRole !== 'admin') {
+            // 強制隱藏會影響後端運作的按鈕
+            this.els.btnStart.classList.add('hidden');
+            this.els.btnOpenSettings.classList.add('hidden');
+            if (mode === 'offline') {
+                this.els.btnUpload.classList.remove('hidden');
+                this.els.btnDownload.classList.remove('hidden');
+                this.els.controlBar.style.display = '';
+            } else {
+                this.els.btnUpload.classList.add('hidden');
+                this.els.btnDownload.classList.add('hidden');
+                this.els.controlBar.style.display = 'none';
+            }
+            
+            if (this.els.thresholdTitle) {
+                const unitText = Config.concUnit ? ` (${Config.concUnit})` : "";
+                this.els.thresholdTitle.innerHTML = `濃度閾值設定${unitText} <span style="font-size: 11px; color: #007bff; font-weight: normal;">(本地端預覽)</span>`;
+            }
         }
     }
 
     triggerUploadProcess() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv'; input.style.display = 'none'; input.onchange = (e) => { const file = e.target.files[0]; if (file) this.parseAndUploadCSV(file); }; document.body.appendChild(input); input.click(); document.body.removeChild(input); }
-    parseAndUploadCSV(file) { const btn = this.els.btnUpload; const originalText = btn.innerText; btn.disabled = true; btn.innerText = "上傳中..."; let projectName = file.name.replace(/\.csv$/i, "").trim(); if (!projectName) { alert("檔名無效"); btn.disabled = false; btn.innerText = originalText; return; } const reader = new FileReader(); reader.onload = (e) => { try { const text = e.target.result; const lines = text.split(/\r?\n/); if (lines.length < 2) throw new Error("CSV 為空"); const uploadData = {}; let count = 0; let lastRecord = null; for (let i = 1; i < lines.length; i++) { const line = lines[i].trim(); if (!line) continue; const cols = line.split(','); if (cols.length < 4) continue; const record = { timestamp: cols[0].trim(), lat: parseFloat(cols[1]), lon: parseFloat(cols[2]), conc: parseFloat(cols[3]), conc_unit: cols[4] ? cols[4].trim() : "", status: cols[5] ? cols[5].trim() : "" }; if (!isNaN(record.lat) && !isNaN(record.lon)) { const key = `record_${Date.now()}_${i}`; uploadData[key] = record; lastRecord = record; count++; } } if (count === 0) throw new Error("無有效數據"); const updates = {}; updates[`${projectName}/history`] = uploadData; if (lastRecord) updates[`${projectName}/latest`] = lastRecord; update(ref(this.db), updates).then(() => { const isDiff = (projectName !== Config.dbRootPath); if (isDiff) { alert(`上傳成功，切換至: ${projectName}`); this.setInterfaceMode('switching', "切換中", "gray", "offline"); set(ref(this.db, `${Config.dbRootPath}/control/config_update`), { project_name: projectName }); const url = new URL(window.location.href); url.searchParams.set('path', projectName); localStorage.setItem('should_fit_bounds', 'true'); window.location.href = url.toString(); } else { localStorage.setItem('should_fit_bounds', 'true'); alert("上傳成功"); location.reload(); } }).catch(err => { alert("上傳失敗: " + err.message); btn.disabled = false; btn.innerText = originalText; }); } catch (err) { alert("解析失敗: " + err.message); btn.disabled = false; btn.innerText = originalText; } }; reader.readAsText(file); }
-    async downloadHistoryAsCSV() { const btn = this.els.btnDownload; const originalText = btn.innerText; btn.disabled = true; btn.innerText = "下載中..."; try { const snapshot = await get(ref(this.db, `${Config.dbRootPath}/history`)); if (!snapshot.exists()) { alert("無歷史資料"); return; } const data = snapshot.val(); let csvContent = "\uFEFFTimestamp,Latitude,Longitude,Concentration,Unit,Status\n"; Object.values(data).forEach(row => { const t = row.timestamp || ""; const lat = row.lat || ""; const lon = row.lon || ""; const conc = row.conc || 0; const unit = row.conc_unit || Config.concUnit; const st = row.status || ""; csvContent += `${t},${lat},${lon},${conc},${unit},${st}\n`; }); const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${Config.dbRootPath}.csv`; link.click(); URL.revokeObjectURL(url); } catch (error) { console.error(error); alert("下載失敗"); } finally { btn.disabled = false; btn.innerText = originalText; } }
+    parseAndUploadCSV(file) { 
+        const btn = this.els.btnUpload; 
+        const originalText = btn.innerText; 
+        btn.disabled = true; btn.innerText = "上傳中..."; 
+        let projectName = file.name.replace(/\.csv$/i, "").trim(); 
+        if (!projectName) { alert("檔名無效"); btn.disabled = false; btn.innerText = originalText; return; } 
+        
+        const reader = new FileReader(); 
+        reader.onload = (e) => { 
+            try { 
+                const buffer = e.target.result; 
+                let text = new TextDecoder("utf-8").decode(buffer);
+                // 如果發現 UTF-8 解碼失敗的菱形替換字元，就切換成台灣 Excel 預設的 Big5 解碼
+                if (text.includes('')) {
+                    text = new TextDecoder("big5").decode(buffer);
+                } 
+                
+                const parseCSV = (str) => {
+                    let firstLine = str.split('\n')[0];
+                    let delimiter = ',';
+                    if (firstLine.includes(';')) delimiter = ';';
+                    else if (firstLine.includes('\t')) delimiter = '\t';
+
+                    const out = [];
+                    let row = [], col = '', quote = false;
+                    for (let i = 0; i < str.length; i++) {
+                        let c = str[i], nc = str[i+1];
+                        if (c === '"' && quote && nc === '"') {
+                            col += '"'; i++; // 處理雙引號跳脫
+                        } else if (c === '"') {
+                            quote = !quote;  // 進入或離開字串模式
+                        } else if (c === delimiter && !quote) {
+                            row.push(col.trim()); col = '';
+                        } else if ((c === '\n' || c === '\r') && !quote) {
+                            if (c === '\r' && nc === '\n') i++; // 處理 Windows 換行
+                            row.push(col.trim());
+                            if (row.length > 1 || row[0] !== '') out.push(row);
+                            row = []; col = '';
+                        } else {
+                            col += c;
+                        }
+                    }
+                    if (col !== '' || row.length > 0) {
+                        row.push(col.trim());
+                        if (row.length > 1 || row[0] !== '') out.push(row);
+                    }
+                    return out;
+                };
+
+                const rows = parseCSV(text);
+                if (rows.length < 2) throw new Error("CSV 為空或格式錯誤"); 
+                
+                const uploadData = {}; 
+                const uploadEvents = {}; 
+                let count = 0; 
+                let lastRecord = null; 
+
+                for (let i = 1; i < rows.length; i++) { 
+                    let cols = rows[i]; 
+
+                    // 救援模式：自動修復舊版無逗號的資料
+                    if (cols.length < 4 && cols[0] && cols[0].split(' ').length >= 6) {
+                        const parts = cols[0].trim().replace(/\s+/g, ' ').split(' ');
+                        if (parts[0].includes('/') && parts[1].includes(':')) {
+                            cols = [
+                                `${parts[0]} ${parts[1]}`, 
+                                parts[2], parts[3], parts[4], parts[5], 
+                                parts.slice(6).join(' '), 
+                                "", "" 
+                            ];
+                        }
+                    }
+
+                    const timestampStr = cols[0] ? cols[0] : "";
+                    if (!timestampStr) continue; 
+
+                    let parsedLat = parseFloat(cols[1]);
+                    let parsedLon = parseFloat(cols[2]);
+                    let parsedConc = parseFloat(cols[3]);
+                    const record = { 
+                        timestamp: timestampStr, 
+                        lat: isNaN(parsedLat) ? null : parsedLat, 
+                        lon: isNaN(parsedLon) ? null : parsedLon, 
+                        conc: isNaN(parsedConc) ? null : parsedConc,
+                        conc_unit: cols[4] ? cols[4] : "", 
+                        status: cols[5] ? cols[5] : "" 
+                    }; 
+                    
+                    if (record.timestamp) { 
+                        const key = `record_${Date.now()}_${i}`; 
+                        uploadData[key] = record; 
+                        if (record.lat !== null && record.lon !== null) {
+                            lastRecord = record; 
+                        } 
+                        count++; 
+                    } 
+
+                    const note = cols[6] ? cols[6] : "";
+                    let imagesStr = cols[7] ? cols[7] : "";
+                    
+                    if (imagesStr === "[]") imagesStr = "";
+                    
+                    // 還原註記與圖片
+                    if (note !== "" || imagesStr !== "") {
+                        let parsedImages = [];
+                        if (imagesStr !== "") {
+                            try { parsedImages = JSON.parse(imagesStr); } 
+                            catch(err) { /* 如果字串有誤就直接留空陣列 */ }
+                        }
+                        const eventKey = `event_${Date.now()}_${i}`;
+                        uploadEvents[eventKey] = {
+                            timestamp: timestampStr,
+                            lat: record.lat,
+                            lon: record.lon,
+                            note: note,
+                            images: parsedImages
+                        };
+                    }
+                } 
+                if (count === 0) throw new Error("無有效數據"); 
+
+                const updates = {}; 
+                updates[`${projectName}/history`] = uploadData; 
+                
+                if (Object.keys(uploadEvents).length > 0) {
+                    updates[`${projectName}/events`] = uploadEvents;
+                } else {
+                    updates[`${projectName}/events`] = null; 
+                }
+                
+                if (lastRecord) updates[`${projectName}/latest`] = lastRecord; 
+
+                update(ref(this.db), updates).then(() => { 
+                    const isDiff = (projectName !== Config.dbRootPath); 
+                    if (isDiff) { 
+                        alert(`上傳成功，切換至: ${projectName}`); 
+                        if (Config.userRole === 'admin') {
+                            set(ref(this.db, `${Config.dbRootPath}/control/config_update`), { project_name: projectName }); 
+                        }
+                        const url = new URL(window.location.href); 
+                        url.searchParams.set('path', projectName); 
+                        if (Config.userRole === 'admin') {
+                            url.searchParams.set('role', 'admin');
+                        }
+                        localStorage.setItem('should_fit_bounds', 'true'); 
+                        window.location.href = url.toString(); 
+                    } 
+                    else { 
+                        localStorage.setItem('should_fit_bounds', 'true'); 
+                        alert("上傳成功"); 
+                        location.reload(); 
+                    } 
+                }).catch(err => { 
+                    alert("上傳失敗: " + err.message); 
+                    btn.disabled = false; 
+                    btn.innerText = originalText;
+                }); 
+            } catch (err) { 
+                alert("解析失敗: " + err.message); 
+                btn.disabled = false; 
+                btn.innerText = originalText; 
+            } 
+        }; 
+        reader.readAsArrayBuffer(file); 
+    }
+
+    async downloadHistoryAsCSV() { 
+        const btn = this.els.btnDownload;
+        const originalText = btn.innerText; 
+        btn.disabled = true; 
+        btn.innerText = "下載中..."; 
+        try { 
+            // 同時抓取歷史軌跡與註記事件
+            const [historySnap, eventsSnap] = await Promise.all([
+                get(ref(this.db, `${Config.dbRootPath}/history`)),
+                get(ref(this.db, `${Config.dbRootPath}/events`))
+            ]);
+
+            if (!historySnap.exists()) { alert("無歷史資料"); return; } 
+            
+            const data = historySnap.val(); 
+            const eventsData = eventsSnap.exists() ? eventsSnap.val() : {};
+
+            // 建立事件字典，用時間戳記來對應
+            const eventsMap = {};
+            Object.values(eventsData).forEach(ev => {
+                eventsMap[ev.timestamp] = ev;
+            });
+
+            // 新增 note 與 images 欄位
+            let csvContent = "\uFEFFtimestamp,lat,lon,conc,conc_unit,status,note,images\n"; 
+            
+            const sortedData = Object.values(data).sort((a, b) => {
+                const timeA = a.timestamp || "";
+                const timeB = b.timestamp || "";
+                return timeA.localeCompare(timeB);
+            });
+
+            // CSV 逸出處理函式（處理逗號與換行）
+            const escapeCSV = (str) => {
+                if (!str) return "";
+                return `"${String(str).replace(/"/g, '""')}"`;
+            };
+
+            sortedData.forEach(row => { 
+                const t = row.timestamp || ""; 
+                const lat = (row.lat !== undefined && row.lat !== null) ? row.lat : ""; 
+                const lon = (row.lon !== undefined && row.lon !== null) ? row.lon : ""; 
+                const conc = (row.conc !== undefined && row.conc !== null) ? row.conc : "";
+                const unit = row.conc_unit || Config.concUnit; 
+                const st = row.status || ""; 
+                
+                // 抓取對應的註記與圖片
+                const ev = eventsMap[t];
+                const note = ev && ev.note ? ev.note : "";
+                // 將圖片陣列轉為 JSON 字串方便儲存
+                const images = ev && ev.images ? JSON.stringify(ev.images) : "";
+
+                csvContent += `${t},${lat},${lon},${conc},${unit},${st},${escapeCSV(note)},${escapeCSV(images)}\n`; 
+            }); 
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
+            const url = URL.createObjectURL(blob); 
+            const link = document.createElement("a"); 
+            link.href = url; link.download = `${Config.dbRootPath}.csv`; 
+            link.click(); 
+            URL.revokeObjectURL(url); 
+        } catch (error) { 
+            console.error(error); 
+            alert("下載失敗"); 
+        } finally { 
+            btn.disabled = false; 
+            btn.innerText = originalText; 
+        } 
+    }
+
     toggleRecordingCommand() { set(ref(this.db, `${Config.dbRootPath}/control/command`), this.isRecording ? "stop" : "start"); }
     startClock() { setInterval(() => this.els.time.innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false }), 1000); }
     getColor(value) { if (value < this.thresholds.a) return Config.COLORS.GREEN; if (value < this.thresholds.b) return Config.COLORS.YELLOW; if (value < this.thresholds.c) return Config.COLORS.ORANGE; return Config.COLORS.RED; }
@@ -1396,13 +1841,23 @@ class UIManager {
             return; 
         }
 
-        set(ref(this.db, `${Config.dbRootPath}/settings/thresholds`), { a: valA, b: valB, c: valC })
-            .then(() => {
-                if (!isSilent) { msgBox.innerText = "設定已儲存"; msgBox.style.color = "green"; setTimeout(() => msgBox.innerText = "", 2000); }
-            })
-            .catch(err => {
-                if (!isSilent) { msgBox.innerText = "儲存失敗"; msgBox.style.color = "red"; }
-            });
+        this.thresholds = { a: valA, b: valB, c: valC };
+        this.updateThresholdDisplay();
+        this.mapManager.refreshColors(this.getColor.bind(this));
+        if (this.chart) this.chart.update('none');
+
+        if (Config.userRole === 'admin') {
+            set(ref(this.db, `${Config.dbRootPath}/settings/thresholds`), { a: valA, b: valB, c: valC })
+                .then(() => {
+                    if (!isSilent) { msgBox.innerText = "已同步至雲端"; msgBox.style.color = "green"; setTimeout(() => msgBox.innerText = "", 2000); }
+                })
+                .catch(err => {
+                    if (!isSilent) { msgBox.innerText = "雲端儲存失敗"; msgBox.style.color = "red"; }
+                });
+        } else {
+            // Guest 視角，只提示本地畫面更新成功
+            if (!isSilent) { msgBox.innerText = "本地畫面已更新"; msgBox.style.color = "#007bff"; setTimeout(() => msgBox.innerText = "", 2000); }
+        }
     }
 }
 
@@ -1410,41 +1865,131 @@ async function main() {
     const firebaseConfig = { apiKey: Config.apiKey, authDomain: `${Config.firebaseProjectId}.firebaseapp.com`, databaseURL: Config.dbURL || `https://${Config.firebaseProjectId}-default-rtdb.asia-southeast1.firebasedatabase.app`, projectId: Config.firebaseProjectId };
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const mapManager = new MapManager();
+    let initLat = 25.0330;
+    let initLon = 121.5654;
+    try {
+        const snap = await get(ref(db, `${Config.dbRootPath}/latest`));
+        if (snap.exists() && snap.val().lat != null && snap.val().lon != null) {
+            initLat = snap.val().lat;
+            initLon = snap.val().lon;
+        }
+    } catch (e) {
+        console.warn("無法取得初始座標", e);
+    }
+    
+    const mapManager = new MapManager(initLat, initLon);
     const uiManager = new UIManager(mapManager, db);
     let backendState = 'offline';
     let lastGpsData = null;
     let lastValidPosition = null; 
     let hasInitialCentered = false; 
 
+    let lastHeartbeatReceivedTime = Date.now();
+    let isHeartbeatLost = true;  // 預設為 true：一開始不信任連線，直到驗證 heartbeat
+    let isInitialLoad = true;
+    let cachedStatusData = null; // 用來暫存 firebase 傳來的狀態
+
+    const applyStatus = (data) => {
+        if (!data || data.state === 'offline') {
+            uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
+            uiManager.updateRealtimeData({}); 
+            return;
+        }
+        backendState = data.state;
+        const msg = data.message || "未知狀態";
+        switch (data.state) {
+            case 'active': uiManager.setInterfaceMode('recording', msg, '#28a745', 'active'); break;
+            case 'gps_lost':
+            case 'conc_lost':
+            case 'all_lost':
+            case 'connecting': uiManager.setInterfaceMode('recording', msg, '#ebb400', 'connecting'); break;
+            case 'timeout': uiManager.setInterfaceMode('idle', msg, '#dc3545', 'timeout'); break;
+            case 'stopped': 
+                uiManager.setInterfaceMode('idle', msg, 'gray', 'stopped');
+                uiManager.updateRealtimeData({});
+                break;
+            case 'switching': uiManager.setInterfaceMode('switching', msg, 'gray', 'offline'); break;
+            default: uiManager.setInterfaceMode('offline', msg, 'gray', 'offline'); break;
+        }
+    };
+
+    onValue(ref(db, `${Config.dbRootPath}/heartbeat`), (snapshot) => {
+        if (snapshot.exists()) {
+            const backendTimestamp = snapshot.val();
+            const now = Date.now();
+            
+            if (isInitialLoad) {
+                isInitialLoad = false;
+                // 初始檢查：如果 Firebase 上的心跳時間已經超過 30 秒，判定為殭屍狀態
+                // (給予 30 秒寬容值是為了吸收前後端電腦的 NTP 時鐘誤差)
+                if (now - backendTimestamp > 60000) {
+                    // console.warn("偵測到前次未正常關閉的殘留狀態，判定為離線。");
+                    isHeartbeatLost = true;
+                    backendState = 'offline';
+                    if (localStorage.getItem('is_switching') === 'true') {
+                        uiManager.setInterfaceMode('switching', "專案切換中... (約 1 分鐘)", "gray", "offline");
+                    } else {
+                        uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
+                    }
+                    return; 
+                }
+            }
+
+            // 正常的更新邏輯：記錄前端收到訊號的當下時間
+            lastHeartbeatReceivedTime = now;
+            
+            if (isHeartbeatLost) {
+                isHeartbeatLost = false;
+                // console.log("Heartbeat 驗證成功，套用最新狀態");
+                // 既然確認存活，就把剛才可能被攔截的真實狀態套用上去
+                if (cachedStatusData) applyStatus(cachedStatusData);
+            }
+        }
+    });
+    // 2. 設置看門狗定期檢查心跳是否逾時
+    setInterval(() => {
+        const now = Date.now();
+        const diff = now - lastHeartbeatReceivedTime;
+
+        // 若超過 30 秒沒收到心跳，且當前狀態不是 offline 或是 stopped
+        // 判定為「非正常關閉 (直接關閉 IDE 或斷線)」
+        if (diff > 30000 && !isHeartbeatLost && backendState !== 'offline') {
+            isHeartbeatLost = true;
+            backendState = 'offline';
+            // 強制呼叫 uiManager 更新 UI，呈現斷線視覺
+            uiManager.setInterfaceMode('offline', "Controller 連線逾時", "gray", "offline");
+            uiManager.updateRealtimeData({}); 
+        }
+    }, 5000); 
+
     onValue(ref(db, `${Config.dbRootPath}/status/available_ports`), (snapshot) => {
         const ports = snapshot.val() || [];
-        const selectEl = document.getElementById('set-conc-port');
+        const selectEl = document.getElementById('set-conc-serial');
         if (selectEl) {
-            const currentVal = selectEl.value || Config.concPort;
+            const currentVal = selectEl.value;
             selectEl.innerHTML = '';
+
             if (ports.length > 0) {
                 ports.forEach(p => {
                     const opt = document.createElement('option');
                     opt.value = p;
-                    opt.innerText = p;
+                    opt.innerText = (p === Config.concSerial) ? `${p} (目前設定)` : p;
                     selectEl.appendChild(opt);
                 });
                 
-                let exists = ports.includes(currentVal);
-                if (!exists && currentVal) {
-                    const opt = document.createElement('option');
-                    opt.value = currentVal;
-                    opt.innerText = currentVal + " (目前設定)";
-                    selectEl.appendChild(opt);
+                if (ports.includes(currentVal)) {
+                    selectEl.value = currentVal; // 維持使用者剛才選的
+                } else if (ports.includes(Config.concSerial)) {
+                    selectEl.value = Config.concSerial; // 顯示 config 裡面儲存的
+                } else {
+                    selectEl.selectedIndex = 0; // 若都沒中，預設選單純的第一個設備
                 }
-                selectEl.value = currentVal;
             } else {
                 const opt = document.createElement('option');
-                opt.value = currentVal || "";
-                opt.innerText = currentVal ? currentVal + " (未偵測到設備)" : "未偵測到設備";
+                opt.value = "";
+                opt.innerText = "未偵測到設備";
                 selectEl.appendChild(opt);
-                selectEl.value = currentVal || "";
+                selectEl.value = "";
             }
         }
     });
@@ -1467,7 +2012,6 @@ async function main() {
 
             if (!hasInitialCentered && lastValidPosition) {
                 mapManager.updateCurrentPosition(lastValidPosition.lat, lastValidPosition.lon, true);
-                mapManager.map.setView([lastValidPosition.lat, lastValidPosition.lon], Config.ZOOM_LEVEL);
                 hasInitialCentered = true; 
             }
 
@@ -1483,41 +2027,26 @@ async function main() {
 
     onValue(ref(db, `${Config.dbRootPath}/status`), (snapshot) => {
         const data = snapshot.val();
-        if (localStorage.getItem('is_switching') && data && (data.state === 'stopped' || data.state === 'active')) localStorage.removeItem('is_switching');
+        cachedStatusData = data;
+        if (localStorage.getItem('is_switching') === 'true') {
+            if (data && data.state === 'stopped') {
+                // 代表後端已經初始化完畢，正式切換完成！此時才移除旗標並解除鎖定
+                localStorage.removeItem('is_switching');
+            } else {
+                // 否則強制保持切換中的提示，不讓「未連接 Controller」閃爍
+                uiManager.setInterfaceMode('switching', "專案切換中... (約 1 分鐘)", "gray", "offline");
+                uiManager.updateRealtimeData({});
+                return;
+            }
+        }
         
-        if (!data || data.state === 'offline') {
+        if (isHeartbeatLost) {
             uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
-            uiManager.updateRealtimeData({}); 
+            uiManager.updateRealtimeData({});
             return;
         }
 
-        backendState = data.state;
-        const msg = data.message || "未知狀態";
-
-        switch (data.state) {
-            case 'active':
-                uiManager.setInterfaceMode('recording', msg, '#28a745', 'active');
-                break;
-            case 'gps_lost':
-            case 'conc_lost':
-            case 'all_lost':
-            case 'connecting':
-                uiManager.setInterfaceMode('recording', msg, '#ffc107', 'connecting');
-                break;
-            case 'timeout':
-                uiManager.setInterfaceMode('idle', msg, '#dc3545', 'timeout');
-                break;
-            case 'stopped':
-                uiManager.setInterfaceMode('idle', msg, 'gray', 'stopped');
-                uiManager.updateRealtimeData({});
-                break;
-            case 'switching':
-                uiManager.setInterfaceMode('switching', msg, 'gray', 'offline');
-                break;
-            default:
-                uiManager.setInterfaceMode('offline', msg, 'gray', 'offline');
-                break;
-        }
+        applyStatus(data);
     });
 
     onValue(ref(db, `${Config.dbRootPath}/latest`), (snapshot) => {
@@ -1530,6 +2059,8 @@ async function main() {
             mapManager.updateCurrentPosition(data.lat, data.lon, document.getElementById('autoCenter').checked);
             if (backendState !== 'offline' && backendState !== 'stopped') {
                 uiManager.updateRealtimeData(data);
+                // 🔥 在 Live 模式下更新最新風標
+                uiManager.updateWindCompass(data);
             }
         }
     });

@@ -97,11 +97,27 @@
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; padding-bottom: 4px;">
                     <span style="font-size: 12px; color: #999;">1</span>
-                    <input type="range" id="radius-slider" min="1" max="20" value="3" step="1" style="flex: 1; cursor: pointer; height: 4px;">
-                    <span style="font-size: 12px; color: #999;">20</span>
+                    <input type="range" id="radius-slider" min="1" max="10" value="3" step="1" style="flex: 1; cursor: pointer; height: 4px;">
+                    <span style="font-size: 12px; color: #999;">10</span>
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- 🔥 新增的風標面板 (放在左下角) -->
+    <div id="wind-compass-panel" class="wind-panel hidden">
+        <div class="wind-icon-container">
+            <svg id="wind-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L4 20l1.41 1.41L12 14l6.59 7.41L20 20z"/>
+            </svg>
+        </div>
+        <div class="wind-info">
+            <div id="wind-station-name" class="wind-station">無測站資訊</div>
+            <div class="wind-details">
+                <span id="wind-speed-text">-- m/s</span>
+            </div>
+            <div id="wind-update-time" class="wind-time">--:--</div>
         </div>
     </div>
 
@@ -115,18 +131,31 @@
                 <div class="modal-form-grid">
                     <label>專案名稱</label>
                     <input type="text" id="set-project-id" class="form-input" placeholder="例如: 2026-01-01">
-                    <label>GPS 連線 IP</label>
-                    <input type="text" id="set-gps-ip" class="form-input" placeholder="192.168.x.x">
-                    <label>GPS 連線 Port</label>
+                    <label>GPS IP Address</label>
+                    <input type="text" id="set-gps-ip" class="form-input" placeholder="192.168.199.103">
+                    <label>GPS Port</label>
                     <input type="number" id="set-gps-port" class="form-input" placeholder="11123">
                     
-                    <label>儀器連線 Port</label>
-                    <select id="set-conc-port" class="form-input">
-                        <option value="">正在偵測本機設備...</option>
+                    <label>儀器名稱 (單位)</label>
+                    <select id="set-conc-instrument" class="form-input">
+                        <option value="TSI">TSI (mg/m³)</option>
+                        <option value="PID">PID (ppb)</option>
                     </select>
 
-                    <label>濃度單位</label>
-                    <input type="text" id="set-conc-unit" class="form-input" placeholder="ppm, ppb...">
+                    <label class="pid-field hidden">儀器 COM Port</label>
+                    <select id="set-conc-serial" class="form-input pid-field hidden">
+                        <option value="">正在偵測本機設備...</option>
+                    </select>
+                    
+                    <label class="pid-field hidden">儀器 Baud Rate</label>
+                    <input type="number" id="set-conc-baudrate" class="form-input pid-field hidden" placeholder="9600" value="9600">
+
+                    <label class="tsi-field hidden">儀器 IP Address</label>
+                    <input type="text" id="set-conc-ip" class="form-input tsi-field hidden" placeholder="192.168.10.100">
+                    
+                    <label class="tsi-field hidden">儀器 Port</label>
+                    <input type="number" id="set-conc-port" class="form-input tsi-field hidden" placeholder="3602">
+
                     <label>濃度延遲 (秒)</label>
                     <input type="number" id="set-time-delay" class="form-input" placeholder="例如: 3" step="1" min="0">
                 </div>
@@ -167,7 +196,7 @@
 
     <div id="bottom-control-bar" class="bottom-control-bar">
         <button id="btn-upload" class="ctrl-btn btn-secondary">上傳</button>
-        <button id="btn-start" class="ctrl-btn btn-primary-large">開始</button>
+        <button id="btn-start" class="ctrl-btn btn-primary-large hidden">開始</button>
         <button id="btn-download" class="ctrl-btn btn-secondary">下載</button>
     </div>
 

@@ -123,9 +123,9 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 
 .th-badge { display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; font-size: 12px; font-weight: bold; color: white; justify-self: center; }
 .bg-green { background-color: #28a745; }
-.bg-yellow { background-color: #ffc107; color: #333; }
+.bg-yellow { background-color: #ebb400; color: #333; }
 .bg-orange { background-color: #fd7e14; }
-.bg-red { background-color: #ff0000; }
+.bg-red { background-color: #dd0000; }
 
 .th-start-val { 
     text-align: right; color: #555; font-size: 13px; padding-right: 4px; 
@@ -166,6 +166,7 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 .modal-form-grid { display: grid; grid-template-columns: 120px 1fr; gap: 15px 12px; align-items: center; padding: 10px 0; }
 .modal-form-grid label { text-align: right; font-weight: 600; color: #555; font-size: 14px; }
 .form-input { width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; color: #495057; background-color: #fff; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
+.form-input::placeholder { color: #bcbcbc; opacity: 1; }
 .form-input:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15); }
 .form-group { display: none; }
 .modal-footer { text-align: right; margin-top: 10px; }
@@ -178,6 +179,69 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 .leaflet-popup-content { color: white !important; font-size: 13px; line-height: 1.5; margin: 12px; }
 .leaflet-popup-close-button { color: #ccc !important; }
 .leaflet-popup-close-button:hover { color: #fff !important; }
+
+.wind-panel {
+    position: absolute;
+    bottom: 30px;
+    left: 20px;
+    z-index: 1000;
+    
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 10px 14px;
+    border: 1px solid rgba(0,0,0,0.1);
+    
+    transition: opacity 0.3s ease;
+}
+
+.wind-icon-container {
+    width: 36px;
+    height: 36px;
+    background: #eef2f5;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 風向箭頭預設朝北 (0度)，我們使用 transform: rotate() 動態改變 */
+#wind-arrow {
+    width: 20px;
+    height: 20px;
+    color: #007bff;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wind-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.wind-station {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.wind-details {
+    font-size: 13px;
+    color: #007bff;
+    font-weight: 600;
+}
+
+.wind-time {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
 
 /* 手機版專用介面 */
 @media (max-width: 768px) {
