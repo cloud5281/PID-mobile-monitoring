@@ -555,10 +555,12 @@ class UIManager {
 
             // 🔥 新增風標相關的 DOM 元素
             windPanel: document.getElementById('wind-compass-panel'),
+            windIconBtn: document.getElementById('wind-icon-btn'),
             windArrow: document.getElementById('wind-arrow'),
             windObsTime: document.getElementById('wind-obs-time'),
             windStationSpeed: document.getElementById('wind-station-speed'), 
-            windUpdateTime: document.getElementById('wind-update-time')
+            windUpdateTime: document.getElementById('wind-update-time'),
+            windToggleBtn: document.getElementById('wind-toggle-btn')
         };
         
         this.eventImagesBase64 = []; 
@@ -1364,6 +1366,17 @@ class UIManager {
 
         this.els.eventPhoto.addEventListener('change', (e) => this.handleEventPhoto(e));
         this.els.btnSaveEvent.addEventListener('click', () => this.saveEventMarker());
+    
+        if (this.els.windToggleBtn && this.els.windPanel) {
+            this.els.windToggleBtn.addEventListener('click', () => {
+                this.els.windPanel.classList.toggle('is-collapsed');
+            });
+        }
+        if (this.els.windIconBtn && this.els.windPanel) {
+            this.els.windIconBtn.addEventListener('click', () => {
+                this.els.windPanel.classList.toggle('is-collapsed');
+            });
+        }
     }
 
     async handleEventPhoto(e) {

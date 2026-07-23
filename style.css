@@ -183,23 +183,26 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 .wind-panel {
     position: absolute;
     top: 15px;
-    left: 55px; /* 避開地圖預設控制項 */
+    left: 55px;
     z-index: 1000;
     display: flex;
-    flex-direction: column; /* 垂直排版，讓標題在最上方 */
-    background: rgba(255, 255, 255, 0.96); /* 稍微提高不透明度，增加質感 */
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 加深陰影層次 */
+    flex-direction: column; /* 預設垂直排版 */
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
     padding: 12px 16px;
     border: 1px solid rgba(0, 0, 0, 0.08);
-    transition: opacity 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 270px;
 }
 
 /* ================= 標題區域 ================= */
 .wind-header {
+    display: flex;
+    justify-content: space-between; /* 讓標題在左、按鈕在右 */
+    align-items: center;
     border-bottom: 1px solid #eee;
-    padding-bottom: 6px;
+    padding-bottom: 8px;
     margin-bottom: 10px;
 }
 
@@ -208,6 +211,7 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
     font-size: 14px;
     color: #333;
     letter-spacing: 1px;
+    margin: 0;
 }
 
 /* ================= 下方圖文容器 ================= */
@@ -221,13 +225,21 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
     flex-shrink: 0;
     width: 42px;  
     height: 42px;
-    background: #f0f4f8; /* 柔和的科技灰藍底色 */
+    background: #f0f4f8;
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.05);
-    margin-top: 4px; /* 讓圖案稍微往下沉一點，與文字重心平衡 */
+    margin-top: 4px;
+    cursor: pointer; /* 加上手指指標 */
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+.wind-icon-container:hover {
+    background: #e4e9f0;
+}
+.wind-icon-container:active {
+    transform: scale(0.92);
 }
 
 #wind-arrow {
@@ -264,6 +276,49 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
     color: #999;
     display: flex;
     gap: 4px;
+}
+
+.wind-toggle-btn {
+    background: #f8f9fa;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.wind-toggle-btn:hover {
+    background: #e2e6ea;
+    color: #1a73e8;
+}
+
+/* ================= 風標面板收合狀態 (膠囊化設計) ================= */
+.wind-panel.is-collapsed {
+    padding: 6px;
+    border-radius: 50%; /* 縮成一個完美的圓 */
+    min-width: unset;
+    justify-content: center;
+}
+
+.wind-panel.is-collapsed .wind-header,
+.wind-panel.is-collapsed .wind-info {
+    display: none;
+}
+
+/* 收合時取消圖案的間距，讓它在圓形容器中完美置中 */
+.wind-panel.is-collapsed .wind-body {
+    gap: 0;
+}
+
+.wind-panel.is-collapsed .wind-icon-container {
+    margin-top: 0;
 }
 
 /* 手機版專用介面 */
