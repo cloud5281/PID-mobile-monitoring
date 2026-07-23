@@ -1680,6 +1680,11 @@ class UIManager {
                     let parsedLat = parseFloat(cols[1]);
                     let parsedLon = parseFloat(cols[2]);
                     let parsedConc = parseFloat(cols[3]);
+                    let wind_speed = (cols[6] !== undefined && cols[6] !== "") ? parseFloat(cols[6]) : null;
+                    let wind_dir = (cols[7] !== undefined && cols[7] !== "") ? parseFloat(cols[7]) : null;
+                    let note = cols[8] ? cols[8] : "";
+                    let imagesStr = cols[9] ? cols[9] : "";
+
                     const record = { 
                         timestamp: timestampStr, 
                         lat: isNaN(parsedLat) ? null : parsedLat, 
@@ -1688,6 +1693,9 @@ class UIManager {
                         conc_unit: cols[4] ? cols[4] : "", 
                         status: cols[5] ? cols[5] : "" 
                     }; 
+
+                    if (wind_speed !== null && !isNaN(wind_speed)) record.wind_speed = wind_speed;
+                    if (wind_dir !== null && !isNaN(wind_dir)) record.wind_dir = wind_dir;
                     
                     if (record.timestamp) { 
                         const key = `record_${Date.now()}_${i}`; 
@@ -1697,9 +1705,6 @@ class UIManager {
                         } 
                         count++; 
                     } 
-
-                    const note = cols[6] ? cols[6] : "";
-                    let imagesStr = cols[7] ? cols[7] : "";
                     
                     if (imagesStr === "[]") imagesStr = "";
                     
@@ -1791,7 +1796,7 @@ class UIManager {
             });
 
             // 新增 note 與 images 欄位
-            let csvContent = "\uFEFFtimestamp,lat,lon,conc,conc_unit,status,note,images\n"; 
+            let csvContent = "\uFEFFtimestamp,lat,lon,conc,conc_unit,status,wind_speed,wind_dir,note,images\n"; 
             
             const sortedData = Object.values(data).sort((a, b) => {
                 const timeA = a.timestamp || "";
@@ -1812,14 +1817,16 @@ class UIManager {
                 const conc = (row.conc !== undefined && row.conc !== null) ? row.conc : "";
                 const unit = row.conc_unit || Config.concUnit; 
                 const st = row.status || ""; 
-                
+                // 擷取風速與風向資料
+                const w_spd = (row.wind_speed !== undefined && row.wind_speed !== null) ? row.wind_speed : "";
+                const w_dir = (row.wind_dir !== undefined && row.wind_dir !== null) ? row.wind_dir : "";
                 // 抓取對應的註記與圖片
                 const ev = eventsMap[t];
                 const note = ev && ev.note ? ev.note : "";
                 // 將圖片陣列轉為 JSON 字串方便儲存
                 const images = ev && ev.images ? JSON.stringify(ev.images) : "";
 
-                csvContent += `${t},${lat},${lon},${conc},${unit},${st},${escapeCSV(note)},${escapeCSV(images)}\n`; 
+                csvContent += `${t},${lat},${lon},${conc},${unit},${st},${w_spd},${w_dir},${escapeCSV(note)},${escapeCSV(images)}\n`; 
             }); 
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
