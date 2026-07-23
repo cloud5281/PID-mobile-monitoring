@@ -105,19 +105,33 @@
         </div>
     </div>
 
-    <!-- 🔥 新增的風標面板 (放在左下角) -->
+    <!-- 風標面板 (左上角) -->
     <div id="wind-compass-panel" class="wind-panel hidden">
-        <div class="wind-icon-container">
-            <svg id="wind-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L4 20l1.41 1.41L12 14l6.59 7.41L20 20z"/>
-            </svg>
+        <!-- 頂部標題區塊 -->
+        <div class="wind-header">
+            <span class="wind-title">風標資訊</span>
         </div>
-        <div class="wind-info">
-            <div id="wind-station-name" class="wind-station">無測站資訊</div>
-            <div class="wind-details">
-                <span id="wind-speed-text">-- m/s</span>
+        
+        <!-- 下方圖文區塊 -->
+        <div class="wind-body">
+            <!-- 圖示容器：加上 flex-shrink 防止擠壓 -->
+            <div class="wind-icon-container">
+                <!-- 替換為更俐落、專業的導航箭頭 SVG -->
+                <svg id="wind-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                </svg>
             </div>
-            <div id="wind-update-time" class="wind-time">--:--</div>
+            
+            <!-- 資訊文字區塊 -->
+            <div class="wind-info">
+                <div id="wind-obs-time" class="wind-obs-time">觀測時間：--:--:--</div>
+                <div id="wind-station-speed" class="wind-station-speed">測站：未知測站 ； 風速：-- m/s</div>
+                <!-- 將邊緣資訊合併，減少版面凌亂感 -->
+                <div class="wind-meta">
+                    <span id="wind-update-time">更新於 --:--</span>
+                    <span>｜ 中央氣象署開放資料</span>
+                </div>
+            </div>
         </div>
     </div>
 

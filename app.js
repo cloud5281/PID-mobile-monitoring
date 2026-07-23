@@ -556,8 +556,8 @@ class UIManager {
             // 🔥 新增風標相關的 DOM 元素
             windPanel: document.getElementById('wind-compass-panel'),
             windArrow: document.getElementById('wind-arrow'),
-            windStationName: document.getElementById('wind-station-name'),
-            windSpeedText: document.getElementById('wind-speed-text'),
+            windObsTime: document.getElementById('wind-obs-time'),
+            windStationSpeed: document.getElementById('wind-station-speed'), 
             windUpdateTime: document.getElementById('wind-update-time')
         };
         
@@ -1007,32 +1007,39 @@ class UIManager {
         }
     }
 
-    // 🔥 新增：負責處理風標邏輯的方法
+    // 🔥 負責處理風標邏輯的方法
     updateWindCompass(data) {
         if (!data || data.wind_dir === undefined || data.wind_speed === undefined) {
             this.els.windPanel.classList.add('hidden');
             return;
         }
 
-        // 如果有資料，就顯示面板
         this.els.windPanel.classList.remove('hidden');
 
-        // 更新文字資訊
-        this.els.windStationName.innerText = data.station_name || "未知測站";
+        const stationName = data.station_name || "未知測站";
+        const windSpeed = data.wind_speed !== undefined ? data.wind_speed : "--";
         
-        // 為了避免時間太長，只擷取 時:分 (例如從 "2026-07-22T10:50:00+08:00" 擷取出 "10:50")
-        let formattedTime = "--:--";
-        if (data.timestamp) {
-            // 如果後端有直接傳時間，優先使用
-            const timeMatch = data.timestamp.match(/\d{2}:\d{2}/);
-            if (timeMatch) formattedTime = timeMatch[0];
+        if (this.els.windStationSpeed) {
+            this.els.windStationSpeed.innerText = `測站: ${stationName}； 風速: ${windSpeed} m/s`;
         }
-        this.els.windUpdateTime.innerText = `更新於 ${formattedTime}`;
-        this.els.windSpeedText.innerText = `${data.wind_speed} m/s`;
+        
+        // 【觀測時間】：對應 WindReader 抓到的氣象站觀測時間 (data.wind_time)
+        if (this.els.windObsTime) {
+            // 如果後端有傳 ISO 格式，可視需求保留全貌或自訂格式
+            this.els.windObsTime.innerText = `觀測時間：${data.wind_time || "--:--:--"}`;
+        }
 
-        // 更新箭頭旋轉角度
-        // 氣象風向 0 度是北風（風從北邊吹來，箭頭應該朝下/南邊）
-        // 我們的 SVG 箭頭預設是朝上（0度），所以加上 180 度讓它順著風吹的方向指
+        // 【更新於】：對應戳 API 的當下時間（即系統處理這筆 GPS 的 timestamp）
+        let updateTime = "--:--";
+        if (data.timestamp) {
+            const timeMatch = data.timestamp.match(/\d{2}:\d{2}/);
+            if (timeMatch) updateTime = timeMatch[0];
+        }
+        if (this.els.windUpdateTime) {
+            this.els.windUpdateTime.innerText = `更新於${updateTime}`;
+        }
+
+        // 更新風標箭頭旋轉角度
         const rotationDegree = data.wind_dir + 180;
         this.els.windArrow.style.transform = `rotate(${rotationDegree}deg)`;
     }

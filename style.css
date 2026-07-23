@@ -182,65 +182,88 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 
 .wind-panel {
     position: absolute;
-    bottom: 30px;
-    left: 20px;
+    top: 15px;
+    left: 55px; /* 避開地圖預設控制項 */
     z-index: 1000;
-    
+    display: flex;
+    flex-direction: column; /* 垂直排版，讓標題在最上方 */
+    background: rgba(255, 255, 255, 0.96); /* 稍微提高不透明度，增加質感 */
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 加深陰影層次 */
+    padding: 12px 16px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    transition: opacity 0.3s ease;
+    min-width: 270px;
+}
+
+/* ================= 標題區域 ================= */
+.wind-header {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+
+.wind-title {
+    font-weight: 900;
+    font-size: 14px;
+    color: #333;
+    letter-spacing: 1px;
+}
+
+/* ================= 下方圖文容器 ================= */
+.wind-body {
     display: flex;
     align-items: center;
-    gap: 12px;
-    
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    padding: 10px 14px;
-    border: 1px solid rgba(0,0,0,0.1);
-    
-    transition: opacity 0.3s ease;
+    gap: 16px; /* 圖案與文字的間距 */
 }
 
 .wind-icon-container {
-    width: 36px;
-    height: 36px;
-    background: #eef2f5;
+    flex-shrink: 0;
+    width: 42px;  
+    height: 42px;
+    background: #f0f4f8; /* 柔和的科技灰藍底色 */
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.05);
+    margin-top: 4px; /* 讓圖案稍微往下沉一點，與文字重心平衡 */
 }
 
-/* 風向箭頭預設朝北 (0度)，我們使用 transform: rotate() 動態改變 */
 #wind-arrow {
-    width: 20px;
-    height: 20px;
-    color: #007bff;
+    width: 24px; 
+    height: 24px;
+    color: #1a73e8; /* 與主要數據同色，形成視覺連結 */
     transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
 }
 
+/* ================= 資訊文字區塊 ================= */
 .wind-info {
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 
-.wind-station {
-    font-weight: bold;
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 2px;
-}
-
-.wind-details {
+.wind-obs-time {
     font-size: 13px;
-    color: #007bff;
     font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
 }
 
-.wind-time {
+.wind-station-speed {
+    font-size: 15px; 
+    font-weight: 900;
+    color: #1a73e8; 
+    margin-bottom: 6px;
+}
+
+.wind-meta {
     font-size: 11px;
-    color: #888;
-    margin-top: 2px;
+    color: #999;
+    display: flex;
+    gap: 4px;
 }
 
 /* 手機版專用介面 */
@@ -272,4 +295,9 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
     
     .panel-title { font-size: 15px; }
     .btn-icon { font-size: 11px; padding: 4px 6px; }
+    .wind-panel {
+        top: 80px; 
+        left: 10px;
+        min-width: auto;
+    }
 }
