@@ -1306,6 +1306,11 @@ class UIManager {
         if (this.els.toggleBtn && this.els.mainPanel) {
             this.els.toggleBtn.addEventListener('click', () => {
                 this.els.mainPanel.classList.toggle('collapsed');
+                setTimeout(() => {
+                    if (this.mapManager && this.mapManager.map) {
+                        this.mapManager.map.invalidateSize();
+                    }
+                }, 300);
             });
         }
 
@@ -2157,6 +2162,17 @@ async function main() {
             }
         }); 
     }
+
+    let mapResizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(mapResizeTimer);
+        mapResizeTimer = setTimeout(() => {
+            // 假設你的 map 實例可以被存取，或者透過 window 全域，這裡以 mapManager 為例
+            if (window.appMapManager && window.appMapManager.map) {
+                window.appMapManager.map.invalidateSize();
+            }
+        }, 200);
+    });
 }
 
 main();
