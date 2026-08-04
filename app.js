@@ -1011,15 +1011,34 @@ class UIManager {
 
     // 🔥 負責處理風標邏輯的方法
     updateWindCompass(data) {
-        if (!data || data.wind_dir === undefined || data.wind_speed === undefined) {
-            this.els.windPanel.classList.add('hidden');
-            return;
+        if (this.els.windPanel) {
+            this.els.windPanel.classList.remove('hidden');
+        }
+        
+        if (!data || data.wind_dir === undefined || data.wind_speed === undefined || data.wind_speed === null) {
+            if (this.els.windStationSpeed) {
+                this.els.windStationSpeed.innerText = `測站：未知 ； 風速：- m/s`;
+            }
+            if (this.els.windObsTime) {
+                this.els.windObsTime.innerText = `觀測時間：--:--:--`;
+            }
+            if (this.els.windUpdateTime) {
+                this.els.windUpdateTime.innerText = `更新於 --:--`;
+            }
+            // 箭頭歸零，並降低透明度表示當前無有效資料
+            if (this.els.windArrow) {
+                this.els.windArrow.style.transform = `rotate(0deg)`;
+                this.els.windArrow.style.opacity = '0.3'; 
+            }
+            return; // 提早結束，不執行下方有資料的渲染邏輯
         }
 
-        this.els.windPanel.classList.remove('hidden');
+        if (this.els.windArrow) {
+            this.els.windArrow.style.opacity = '1';
+        }
 
-        const stationName = data.station_name || "未知測站";
-        const windSpeed = data.wind_speed !== undefined ? data.wind_speed : "--";
+        const stationName = data.station_name || "未知";
+        const windSpeed = data.wind_speed !== undefined ? data.wind_speed : "-";
         
         if (this.els.windStationSpeed) {
             this.els.windStationSpeed.innerText = `測站: ${stationName}； 風速: ${windSpeed} m/s`;
@@ -1038,7 +1057,7 @@ class UIManager {
             if (timeMatch) updateTime = timeMatch[0];
         }
         if (this.els.windUpdateTime) {
-            this.els.windUpdateTime.innerText = `更新於${updateTime}`;
+            this.els.windUpdateTime.innerText = `更新於 ${updateTime}`;
         }
 
         // 更新風標箭頭旋轉角度
