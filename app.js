@@ -236,7 +236,7 @@ class MapManager {
 
     _getTooltipContent(data) {
         const unit = data.conc_unit || Config.concUnit || "";
-        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
+        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost' && data.status !== 'All Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
         return `
             <div style="text-align: left; line-height: 1.5;">
                 <span>⏰ 時間:</span> ${data.timestamp}<br>
@@ -247,7 +247,7 @@ class MapManager {
 
     _getPopupContent(data) {
         const unit = data.conc_unit || Config.concUnit || "";
-        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
+        const concStr = (data.conc != null && data.conc >= 0 && data.status !== 'Conc Lost' && data.status !== 'All Lost') ? `${data.conc} ${unit}` : `<span style="color:gray;">無訊號</span>`;
         let html = `
             <div style="text-align: left; line-height: 1.5; min-width: 200px; max-width: 280px;">
                 <span>⏰ 時間:</span> ${data.timestamp}<br>
@@ -329,9 +329,11 @@ class MapManager {
             const pos = [data.lat, data.lon];
             this.coordsArray.push(pos);
             this.pathLine.setLatLngs(this.coordsArray);
+
+            const isConcValid = data.conc !== undefined && data.conc !== null && data.conc >= 0 && data.status !== 'Conc Lost' && data.status !== 'All Lost';
             
             let color = '#999999';
-            if (data.conc !== undefined && data.conc !== null && data.conc >= 0 && data.status !== 'Conc Lost') {
+            if (isConcValid) {
                 color = getColorFn(data.conc);
             }
 
@@ -346,6 +348,7 @@ class MapManager {
                 radius: this.pointRadius
             });
             circle.concValue = data.conc;
+            circle.isConcValid = isConcValid;
             circle.timestamp = data.timestamp;
             this.allMarkers.push(circle);
 
@@ -400,7 +403,7 @@ class MapManager {
             if (layer.concValue !== undefined) {
                 if (layer === this.lastHighlightedLayer) return; 
                 const hasEvent = !!this.eventsByTime[layer.timestamp];
-                const color = (layer.concValue != null && layer.concValue >= 0) ? getColorFn(layer.concValue) : '#999999';
+                const color = (layer.isConcValid) ? getColorFn(layer.concValue) : '#999999';
                 
                 // 強制給定完整的 SVG 屬性，防呆 Leaflet 渲染器
                 layer.setStyle({ 
@@ -809,13 +812,13 @@ class UIManager {
 
         if (this.chart) {
             const slicedData = this.sortedHistoryData.slice(0, index + 1);
-            const values = slicedData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') ? d.conc : null);
+            const values = slicedData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost' && d.status !== 'All Lost') ? d.conc : null);
             
             let currentMax = 0;
             let currentMaxUnit = Config.concUnit || "";
             for (let i = 0; i < slicedData.length; i++) {
                 let d = slicedData[i];
-                if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') {
+                if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost' && d.status !== 'All Lost') {
                     if (d.conc > currentMax) {
                         currentMax = d.conc;
                         if (d.conc_unit) currentMaxUnit = d.conc_unit; // 記錄最大值當下的單位
@@ -946,7 +949,7 @@ class UIManager {
             .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
         this.sortedHistoryData = rawSorted;
 
-        const allValues = this.sortedHistoryData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') ? d.conc : null);
+        const allValues = this.sortedHistoryData.map(d => (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost' && d.status !== 'All Lost') ? d.conc : null);
         
         if (this.els.playbackSlider) {
             this.els.playbackSlider.max = this.sortedHistoryData.length - 1;
@@ -962,7 +965,7 @@ class UIManager {
         let globalMaxUnit = Config.concUnit || ""; 
         for (let i = 0; i < this.sortedHistoryData.length; i++) {
             let d = this.sortedHistoryData[i];
-            if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost') {
+            if (d.conc !== null && d.conc >= 0 && d.status !== 'Conc Lost' && d.status !== 'All Lost') {
                 if (d.conc > globalMax) {
                     globalMax = d.conc;
                     if (d.conc_unit) globalMaxUnit = d.conc_unit; 

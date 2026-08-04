@@ -17,6 +17,7 @@ class RunProcedures:
         self.cfg = cfg
         self.merger_thread = None
         self.running = False
+        self._is_stopping = False
 
         self.gps = GPSReader()
         self.gps.wifi_ip = self.cfg.GPS_IP
@@ -183,7 +184,7 @@ class RunProcedures:
                             "status": "GPS Lost",
                             "conc": latest_conc_cache['val'],
                             "conc_unit": latest_conc_cache['unit'],
-                            "station_name": latest_wind_cache.get('測站名稱', ''),
+                            "station_name": latest_wind_cache.get('測站名稱'),
                             "wind_speed": latest_wind_cache.get('風速'),
                             "wind_dir": latest_wind_cache.get('風向')
                         }
@@ -206,6 +207,10 @@ class RunProcedures:
             self.fb.data_queue.put(None)
 
     def stop(self):
+        if self._is_stopping:
+            return
+        self._is_stopping = True
+        
         self.running = False
         self.gps.stop()
         self.conc.stop() 
