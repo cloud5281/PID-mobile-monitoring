@@ -561,7 +561,8 @@ class UIManager {
             windIconBtn: document.getElementById('wind-icon-btn'),
             windArrow: document.getElementById('wind-arrow'),
             windObsTime: document.getElementById('wind-obs-time'),
-            windStationSpeed: document.getElementById('wind-station-speed'), 
+            windStationSpeed: document.getElementById('wind-station-speed'),
+            windTempHumd: document.getElementById('wind-temp-humd'), 
             windUpdateTime: document.getElementById('wind-update-time'),
             windToggleBtn: document.getElementById('wind-toggle-btn')
         };
@@ -1020,7 +1021,10 @@ class UIManager {
         
         if (!data || data.wind_dir === undefined || data.wind_speed === undefined || data.wind_speed === null) {
             if (this.els.windStationSpeed) {
-                this.els.windStationSpeed.innerText = `測站：未知 ； 風速：- m/s`;
+                this.els.windStationSpeed.innerText = `測站：未知 ； 風速：-- m/s`;
+            }
+            if (this.els.windTempHumd) {
+                this.els.windTempHumd.innerText = `溫度：-- °C ； 濕度：-- %`; 
             }
             if (this.els.windObsTime) {
                 this.els.windObsTime.innerText = `觀測時間：--:--:--`;
@@ -1041,16 +1045,26 @@ class UIManager {
         }
 
         const stationName = data.station_name || "未知";
-        const windSpeed = data.wind_speed !== undefined ? data.wind_speed : "-";
+        const windSpeed = data.wind_speed !== undefined ? data.wind_speed : "--";
+        const temp = data.temperature !== undefined && data.temperature !== null ? data.temperature : "--";
+        const humd = data.humidity !== undefined && data.humidity !== null ? data.humidity : "--";
         
         if (this.els.windStationSpeed) {
             this.els.windStationSpeed.innerText = `測站: ${stationName}； 風速: ${windSpeed} m/s`;
         }
+
+        if (this.els.windTempHumd) {
+            this.els.windTempHumd.innerText = `溫度：${temp} °C ； 濕度：${humd} %`; // 新增數值寫入
+        }
         
         // 【觀測時間】：對應 WindReader 抓到的氣象站觀測時間 (data.wind_time)
+        let formatObsTime = "--:--:--";
+        if (data.wind_time) {
+            // 把 T 換成空白，並切掉 +08:00 的時區尾巴
+            formatObsTime = data.wind_time.replace('T', ' ').split('+')[0];
+        }
         if (this.els.windObsTime) {
-            // 如果後端有傳 ISO 格式，可視需求保留全貌或自訂格式
-            this.els.windObsTime.innerText = `觀測時間：${data.wind_time || "--:--:--"}`;
+            this.els.windObsTime.innerText = `觀測時間：${formatObsTime}`;
         }
 
         // 【更新於】：對應戳 API 的當下時間（即系統處理這筆 GPS 的 timestamp）
@@ -1696,7 +1710,7 @@ class UIManager {
                                 `${parts[0]} ${parts[1]}`, 
                                 parts[2], parts[3], parts[4], parts[5], 
                                 parts.slice(6).join(' '), 
-                                "", "" 
+                                "", "", "", "", "", ""
                             ];
                         }
                     }
@@ -1709,8 +1723,10 @@ class UIManager {
                     let parsedConc = parseFloat(cols[3]);
                     let wind_speed = (cols[6] !== undefined && cols[6] !== "") ? parseFloat(cols[6]) : null;
                     let wind_dir = (cols[7] !== undefined && cols[7] !== "") ? parseFloat(cols[7]) : null;
-                    let note = cols[8] ? cols[8] : "";
-                    let imagesStr = cols[9] ? cols[9] : "";
+                    let temperature = (cols[8] !== undefined && cols[8] !== "") ? parseFloat(cols[8]) : null;
+                    let humidity = (cols[9] !== undefined && cols[9] !== "") ? parseFloat(cols[9]) : null;
+                    let note = cols[10] ? cols[10] : "";
+                    let imagesStr = cols[11] ? cols[11] : "";
 
                     const record = { 
                         timestamp: timestampStr, 
@@ -1723,6 +1739,8 @@ class UIManager {
 
                     if (wind_speed !== null && !isNaN(wind_speed)) record.wind_speed = wind_speed;
                     if (wind_dir !== null && !isNaN(wind_dir)) record.wind_dir = wind_dir;
+                    if (temperature !== null && !isNaN(temperature)) record.temperature = temperature;
+                    if (humidity !== null && !isNaN(humidity)) record.humidity = humidity;
                     
                     if (record.timestamp) { 
                         const key = `record_${Date.now()}_${i}`; 
@@ -1823,7 +1841,7 @@ class UIManager {
             });
 
             // 新增 note 與 images 欄位
-            let csvContent = "\uFEFFtimestamp,lat,lon,conc,conc_unit,status,wind_speed,wind_dir,note,images\n"; 
+            let csvContent = "\uFEFFtimestamp,lat,lon,conc,conc_unit,status,wind_speed,wind_dir,temperature,humidity,note,images\n"; 
             
             const sortedData = Object.values(data).sort((a, b) => {
                 const timeA = a.timestamp || "";
@@ -1847,13 +1865,16 @@ class UIManager {
                 // 擷取風速與風向資料
                 const w_spd = (row.wind_speed !== undefined && row.wind_speed !== null) ? row.wind_speed : "";
                 const w_dir = (row.wind_dir !== undefined && row.wind_dir !== null) ? row.wind_dir : "";
+                // 新增：擷取溫濕度資料
+                const temp = (row.temperature !== undefined && row.temperature !== null) ? row.temperature : "";
+                const humd = (row.humidity !== undefined && row.humidity !== null) ? row.humidity : "";
                 // 抓取對應的註記與圖片
                 const ev = eventsMap[t];
                 const note = ev && ev.note ? ev.note : "";
                 // 將圖片陣列轉為 JSON 字串方便儲存
                 const images = ev && ev.images ? JSON.stringify(ev.images) : "";
 
-                csvContent += `${t},${lat},${lon},${conc},${unit},${st},${w_spd},${w_dir},${escapeCSV(note)},${escapeCSV(images)}\n`; 
+                csvContent += `${t},${lat},${lon},${conc},${unit},${st},${w_spd},${w_dir},${temp},${humd},${escapeCSV(note)},${escapeCSV(images)}\n`; 
             }); 
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class RunProcedures:
     def __init__(self, cfg):
         self.cfg = cfg
+        self.timeout_limit = 3000
         self.merger_thread = None
         self.running = False
         self._is_stopping = False
@@ -22,6 +23,7 @@ class RunProcedures:
         self.gps = GPSReader()
         self.gps.wifi_ip = self.cfg.GPS_IP
         self.gps.port = self.cfg.GPS_PORT  
+        self.gps.timeout_limit = self.timeout_limit
         self.gps.gps_queue = self.cfg.GPS_QUEUE
 
         if self.cfg.CONC_INSTRUMENT == 'PID':
@@ -33,6 +35,7 @@ class RunProcedures:
             self.conc.ip = self.cfg.CONC_IP
             self.conc.port = self.cfg.CONC_PORT
         self.conc.unit = self.cfg.CONC_UNIT
+        self.conc.timeout_limit = self.timeout_limit
         self.conc.conc_queue = self.cfg.CONC_QUEUE
 
         self.wind = WindReader()
@@ -68,7 +71,9 @@ class RunProcedures:
             "測站名稱": "",
             "觀測時間": "",
             "風速": None, 
-            "風向": None
+            "風向": None,
+            "溫度": None,  
+            "濕度": None
         }
         
         last_valid_gps = {
@@ -84,6 +89,7 @@ class RunProcedures:
         
         # 🔥 新增：儲存 GPS 資料的緩衝區，用於時間延遲匹配
         gps_buffer = []
+        wind_started = False
 
         while self.running:
             try:
@@ -148,6 +154,10 @@ class RunProcedures:
                         last_valid_gps['lon'] = delayed_gps_data['lon']
                         self.wind.latest_loc = [delayed_gps_data['lat'], delayed_gps_data['lon']]
 
+                        if not wind_started:
+                            self.wind.run()
+                            wind_started = True
+
                     # 🔥 將 N 秒前的 GPS 座標，與「當下最新」的濃度匹配
                     delayed_gps_data['conc'] = latest_conc_cache['val']
                     delayed_gps_data['conc_unit'] = latest_conc_cache['unit']
@@ -156,6 +166,8 @@ class RunProcedures:
                     delayed_gps_data['wind_time'] = latest_wind_cache.get('觀測時間', '')
                     delayed_gps_data['wind_speed'] = latest_wind_cache.get('風速')
                     delayed_gps_data['wind_dir'] = latest_wind_cache.get('風向')
+                    delayed_gps_data['temperature'] = latest_wind_cache.get('溫度')
+                    delayed_gps_data['humidity'] = latest_wind_cache.get('濕度')
                     
                     time_diff = current_time - latest_conc_cache['last_update']
                     if time_diff > SENSOR_TIMEOUT_SEC:
@@ -186,7 +198,9 @@ class RunProcedures:
                             "conc_unit": latest_conc_cache['unit'],
                             "station_name": latest_wind_cache.get('測站名稱'),
                             "wind_speed": latest_wind_cache.get('風速'),
-                            "wind_dir": latest_wind_cache.get('風向')
+                            "wind_dir": latest_wind_cache.get('風向'),
+                            "temperature": latest_wind_cache.get('溫度'), 
+                            "humidity": latest_wind_cache.get('濕度')     
                         }
                         
                         time_diff = current_time - latest_conc_cache['last_update']
@@ -228,7 +242,7 @@ class RunProcedures:
 
         self.conc.run()
         self.gps.run()
-        self.wind.run()      
+        # self.wind.run()      
 
         self.merger_thread = threading.Thread(target=self._queue_merger, daemon=True)
         self.merger_thread.start()
