@@ -62,7 +62,7 @@ class RunProcedures:
 
     def _queue_merger(self):
         latest_conc_cache = {
-            'val': 0.0, 
+            'val': None, 
             'unit': self.conc.unit if hasattr(self.conc, 'unit') else '', 
             'last_update': time.time()
         }
@@ -170,9 +170,11 @@ class RunProcedures:
                     delayed_gps_data['humidity'] = latest_wind_cache.get('濕度')
                     
                     time_diff = current_time - latest_conc_cache['last_update']
-                    if time_diff > SENSOR_TIMEOUT_SEC:
+                    if latest_conc_cache['val'] is None and time_diff <= SENSOR_TIMEOUT_SEC:
+                        delayed_gps_data['status'] = 'Connecting'
+                    elif time_diff > SENSOR_TIMEOUT_SEC:
                         delayed_gps_data['status'] = 'Conc Lost'
-                        delayed_gps_data['conc'] = 0.0
+                        delayed_gps_data['conc'] = None
                     
                     self.fb.data_queue.put(delayed_gps_data)
                     self._ensure_backup_active()
@@ -192,19 +194,22 @@ class RunProcedures:
                             "timestamp": now_str,
                             "lat": None, 
                             "lon": None, 
-                            "alt": 0,
+                            "alt": None,
                             "status": "GPS Lost",
                             "conc": latest_conc_cache['val'],
                             "conc_unit": latest_conc_cache['unit'],
-                            "station_name": latest_wind_cache.get('測站名稱'),
-                            "wind_speed": latest_wind_cache.get('風速'),
-                            "wind_dir": latest_wind_cache.get('風向'),
-                            "temperature": latest_wind_cache.get('溫度'), 
-                            "humidity": latest_wind_cache.get('濕度')     
+                            "station_name": None,
+                            "wind_time": None,
+                            "wind_speed": None,
+                            "wind_dir": None,
+                            "temperature": None, 
+                            "humidity": None     
                         }
                         
                         time_diff = current_time - latest_conc_cache['last_update']
-                        if latest_conc_cache['last_update'] > 0 and time_diff > SENSOR_TIMEOUT_SEC:
+                        if latest_conc_cache['val'] is None and time_diff <= SENSOR_TIMEOUT_SEC:
+                            no_gps_data['status'] = 'Connecting'
+                        elif time_diff > SENSOR_TIMEOUT_SEC:
                             no_gps_data['status'] = 'All Lost'
 
                         self.fb.data_queue.put(no_gps_data)
@@ -226,10 +231,10 @@ class RunProcedures:
         self._is_stopping = True
         
         self.running = False
+        self.fb.stop()
         self.gps.stop()
         self.conc.stop() 
         self.wind.stop()   
-        self.fb.stop()
         if self.is_backup_started:
             self.backup.stop()
             self.is_backup_started = False

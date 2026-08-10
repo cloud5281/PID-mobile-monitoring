@@ -246,7 +246,7 @@ class SystemController:
 
             db.reference(f'{self.cfg.PROJECT_NAME}/status').update({
                 'state': 'connecting',
-                'message': '系統啟動中...'
+                'message': '等待連線中...'
             })
             
         except Exception as e:

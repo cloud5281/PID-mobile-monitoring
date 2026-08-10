@@ -1019,7 +1019,7 @@ class UIManager {
             this.els.windPanel.classList.remove('hidden');
         }
         
-        if (!data || data.wind_dir === undefined || data.wind_speed === undefined || data.wind_speed === null) {
+        if (!data || Object.keys(data).length === 0 || data.status === 'Connecting' || data.wind_dir === undefined || data.wind_speed === undefined || data.wind_speed === null) {
             if (this.els.windStationSpeed) {
                 this.els.windStationSpeed.innerText = `測站：未知 ； 風速：-- m/s`;
             }
@@ -1528,6 +1528,14 @@ class UIManager {
 
         const status = data.status;
 
+        if (status === 'Connecting') {
+            this.els.coords.innerText = "等待連線中...";
+            this.els.coords.style.color = 'gray';
+            this.els.conc.innerText = "等待連線中...";
+            this.els.conc.style.color = 'gray';
+            return;
+        }
+
         if (status === 'GPS Lost' || status === 'All Lost' || status === 'V') {
             this.els.coords.innerText = "GPS 訊號中斷"; 
             this.els.coords.style.color = 'gray';
@@ -1968,6 +1976,7 @@ async function main() {
         if (!data || data.state === 'offline') {
             uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
             uiManager.updateRealtimeData({}); 
+            uiManager.updateWindCompass({});
             return;
         }
         backendState = data.state;
@@ -1982,6 +1991,7 @@ async function main() {
             case 'stopped': 
                 uiManager.setInterfaceMode('idle', msg, 'gray', 'stopped');
                 uiManager.updateRealtimeData({});
+                uiManager.updateWindCompass({});
                 break;
             case 'switching': uiManager.setInterfaceMode('switching', msg, 'gray', 'offline'); break;
             default: uiManager.setInterfaceMode('offline', msg, 'gray', 'offline'); break;
@@ -2033,7 +2043,8 @@ async function main() {
             backendState = 'offline';
             // 強制呼叫 uiManager 更新 UI，呈現斷線視覺
             uiManager.setInterfaceMode('offline', "Controller 連線逾時", "gray", "offline");
-            uiManager.updateRealtimeData({}); 
+            uiManager.updateRealtimeData({});
+            uiManager.updateWindCompass({}); 
         }
     }, 5000); 
 
@@ -2111,6 +2122,7 @@ async function main() {
                 // 否則強制保持切換中的提示，不讓「未連接 Controller」閃爍
                 uiManager.setInterfaceMode('switching', "專案切換中... (約 1 分鐘)", "gray", "offline");
                 uiManager.updateRealtimeData({});
+                uiManager.updateWindCompass({});
                 return;
             }
         }
@@ -2118,6 +2130,7 @@ async function main() {
         if (isHeartbeatLost) {
             uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
             uiManager.updateRealtimeData({});
+            uiManager.updateWindCompass({});
             return;
         }
 
