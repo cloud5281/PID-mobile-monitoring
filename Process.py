@@ -8,6 +8,7 @@ from Procedure.PIDReader import PIDReader
 from Procedure.TSIReader import TSIReader
 from Procedure.WindReader import WindReader
 from Procedure.FirebaseManager import FirebaseManager
+from Procedure.CameraReader import CameraReader
 from Procedure.BackupManager import BackupManager
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,23 @@ class RunProcedures:
             key_path=self.cfg.FIREBASE_KEY, 
             db_url=self.cfg.DB_URL
         )
-        self.backup = BackupManager(self.cfg.PROJECT_NAME)
+        
+        self.backup = BackupManager()
+        self.backup.save_dir = f"backups/{self.cfg.PROJECT_NAME}"
         self.is_backup_started = False
 
         self.fb.project_name = self.cfg.PROJECT_NAME
         self.fb.data_queue = self.cfg.SHARED_QUEUE 
+
+        self.camera = None
+        if self.cfg.CAMERA_ENABLED:
+            self.camera = CameraReader(
+                camera_index=1, 
+                cooldown=5.0
+            )
+            self.camera.threshold = self.cfg.CAMERA_THRESHOLD
+            self.camera.save_dir = f"events_photos/{self.cfg.PROJECT_NAME}"
+            self.camera.camera_queue = self.cfg.CAMERA_QUEUE
 
     def _ensure_backup_active(self):
         if not self.is_backup_started:
@@ -107,6 +120,10 @@ class RunProcedures:
                         latest_conc_cache['val'] = c_data['conc']
                         if 'unit' in c_data: latest_conc_cache['unit'] = c_data['unit']
                         latest_conc_cache['last_update'] = time.time()
+
+                        if self.running and c_data['conc'] is not None and self.camera:
+                            self.cfg.CAMERA_QUEUE.put(c_data['conc'])
+
                     except queue.Empty:
                         break
                 if not conc_alive: break
@@ -234,7 +251,9 @@ class RunProcedures:
         self.fb.stop()
         self.gps.stop()
         self.conc.stop() 
-        self.wind.stop()   
+        self.wind.stop()
+        if self.camera:            
+            self.camera.stop()        
         if self.is_backup_started:
             self.backup.stop()
             self.is_backup_started = False
@@ -248,6 +267,8 @@ class RunProcedures:
         self.conc.run()
         self.gps.run()
         # self.wind.run()      
+        if self.camera:           
+            self.camera.run()
 
         self.merger_thread = threading.Thread(target=self._queue_merger, daemon=True)
         self.merger_thread.start()

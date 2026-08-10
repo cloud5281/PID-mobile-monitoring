@@ -532,7 +532,8 @@ class UIManager {
                 conc_baudrate: document.getElementById('set-conc-baudrate'), 
                 conc_ip: document.getElementById('set-conc-ip'),
                 conc_port: document.getElementById('set-conc-port'),
-                time_delay: document.getElementById('set-time-delay')
+                time_delay: document.getElementById('set-time-delay'),
+                camera_enabled: document.getElementById('set-camera-enabled')
             },
             btnStart: document.getElementById('btn-start'),
             btnUpload: document.getElementById('btn-upload'),
@@ -1095,6 +1096,8 @@ class UIManager {
         Config.concUnit = data.conc_unit || "";
 
         Config.timeDelay = data.time_delay !== undefined ? data.time_delay : 0; 
+
+        Config.cameraEnabled = data.camera_enabled !== undefined ? data.camera_enabled : true;
         
         if (!this.els.modal.classList.contains('hidden')) this.fillSettingsInputs();
         
@@ -1143,6 +1146,10 @@ class UIManager {
         if (this.els.backendInputs.conc_port) this.els.backendInputs.conc_port.value = Config.concPort;
         if (this.els.backendInputs.time_delay) this.els.backendInputs.time_delay.value = Config.timeDelay;
         
+        if (this.els.backendInputs.camera_enabled) {
+            this.els.backendInputs.camera_enabled.checked = Config.cameraEnabled;
+        }
+
         if (this.els.backendInputs.conc_serial) {
             let exists = false;
             for (let i = 0; i < this.els.backendInputs.conc_serial.options.length; i++) {
@@ -1252,8 +1259,11 @@ class UIManager {
             const cb = this.els.backendInputs.conc_baudrate ? this.els.backendInputs.conc_baudrate.value : "";
             const ci = this.els.backendInputs.conc_ip ? this.els.backendInputs.conc_ip.value.trim() : "";
             const cp = this.els.backendInputs.conc_port ? this.els.backendInputs.conc_port.value : "";
+            
             const td = this.els.backendInputs.time_delay ? this.els.backendInputs.time_delay.value.trim() : ""; 
             
+            const ce = this.els.backendInputs.camera_enabled ? this.els.backendInputs.camera_enabled.checked : true;
+
             if (p) updateData.project_name = p;
 
             if (gi) updateData.gps_ip = gi; 
@@ -1266,6 +1276,8 @@ class UIManager {
             if (cp) updateData.conc_port = cp;
             
             if (td !== "") updateData.time_delay = parseFloat(td); 
+
+            updateData.camera_enabled = ce;
             
             if (Object.keys(updateData).length === 0) { alert("未輸入變更"); return; } 
             
@@ -1529,9 +1541,9 @@ class UIManager {
         const status = data.status;
 
         if (status === 'Connecting') {
-            this.els.coords.innerText = "等待連線中...";
+            this.els.coords.innerText = "連線中...";
             this.els.coords.style.color = 'gray';
-            this.els.conc.innerText = "等待連線中...";
+            this.els.conc.innerText = "連線中...";
             this.els.conc.style.color = 'gray';
             return;
         }

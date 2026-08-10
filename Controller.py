@@ -20,6 +20,7 @@ class SystemController:
         
         self.cmd_listener = None
         self.config_listener = None
+        self.threshold_listener = None
 
         try:
             self.cfg = Config(self.config_file)
@@ -78,7 +79,8 @@ class SystemController:
                 "conc_ip": self.cfg.CONC_IP,
                 "conc_port": self.cfg.CONC_PORT,
                 "conc_unit": self.cfg.CONC_UNIT,
-                "time_delay": self.cfg.TIME_DELAY 
+                "time_delay": self.cfg.TIME_DELAY,
+                "camera_enabled": self.cfg.CAMERA_ENABLED 
         }
             
         try:
@@ -103,7 +105,10 @@ class SystemController:
                 config_ref = db.reference(f'{self.cfg.PROJECT_NAME}/control/config_update')
                 config_ref.delete()
                 self.config_listener = config_ref.listen(self._handle_config_update)
-                
+
+                threshold_ref = db.reference(f'{self.cfg.PROJECT_NAME}/settings/thresholds')
+                self.threshold_listener = threshold_ref.listen(self._handle_threshold_update)
+
                 self.logger.info("✅ 監聽器啟動成功")
                 return 
 
@@ -121,14 +126,17 @@ class SystemController:
         """
         cmd_to_close = self.cmd_listener
         conf_to_close = self.config_listener
+        thr_to_close = self.threshold_listener
         
         self.cmd_listener = None
         self.config_listener = None
+        self.threshold_listener = None
         
         def close_them():
             try:
                 if cmd_to_close: cmd_to_close.close()
                 if conf_to_close: conf_to_close.close()
+                if thr_to_close: thr_to_close.close()
             except Exception:
                 pass
                 
@@ -140,6 +148,26 @@ class SystemController:
         self.logger.info(f"⚙️ 收到參數更新請求: {new_settings}")
         
         threading.Thread(target=self._perform_project_switch, args=(new_settings,)).start()
+
+    def _handle_threshold_update(self, event):
+        if event.data is None: return
+        try:
+            new_c = None
+            # Firebase 回傳的結構：可能是字典 {'a':50, 'b':100, 'c':150} 或者是單一欄位更新 path='/c'
+            if isinstance(event.data, dict) and 'c' in event.data:
+                new_c = float(event.data['c'])
+            elif event.path == '/c':
+                new_c = float(event.data)
+                
+            if new_c is not None:
+                self.cfg.CAMERA_THRESHOLD = new_c
+                self.logger.info(f"📸 收到閾值更新，相機觸發拍照濃度變更為：{new_c}")
+                
+                # 如果主程式正在執行，且相機模組存在，直接覆寫觸發條件
+                if self.process and hasattr(self.process, 'camera') and self.process.camera:
+                    self.process.camera.threshold = new_c
+        except Exception as e:
+            self.logger.warning(f"⚠️ 解析閾值更新失敗：{e}")
 
     def _perform_project_switch(self, new_settings):
         old_project_name = self.cfg.PROJECT_NAME
@@ -184,6 +212,8 @@ class SystemController:
                 config_data['conc']['port'] = int(new_settings['conc_port'])
             if 'time_delay' in new_settings: 
                 config_data['settings']['time_delay'] = float(new_settings['time_delay'])
+            if 'camera_enabled' in new_settings:
+                config_data['settings']['camera_enabled'] = bool(new_settings['camera_enabled'])
 
             with open(config_absolute_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2, ensure_ascii=False)
@@ -261,16 +291,19 @@ class SystemController:
             return
 
         self.logger.info("🛑 正在停止後端程序...")
+        db.reference(f'{self.cfg.PROJECT_NAME}/status').update({
+            'state': 'connecting',
+            'message': '正在停止...'
+        })
         self.process.stop()
         if self.process_thread:
             self.process_thread.join(timeout=1.0)
-        
-        self.process = None
-        
+                    
         db.reference(f'{self.cfg.PROJECT_NAME}/status').update({
             'state': 'stopped',
             'message': '使用者手動停止'
         })
+        self.process = None
         self.logger.info("✅ 後端程序已停止")
 
     def run(self):
