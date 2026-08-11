@@ -5,7 +5,9 @@ import firebase_admin
 import webbrowser
 import json
 import os
-import serial.tools.list_ports  # 🔥 引入序列埠偵測工具
+import serial.tools.list_ports
+import cv2
+import subprocess
 
 from firebase_admin import credentials, db, exceptions
 from Config import Config
@@ -80,7 +82,8 @@ class SystemController:
                 "conc_port": self.cfg.CONC_PORT,
                 "conc_unit": self.cfg.CONC_UNIT,
                 "time_delay": self.cfg.TIME_DELAY,
-                "camera_enabled": self.cfg.CAMERA_ENABLED 
+                "camera_enabled": self.cfg.CAMERA_ENABLED,
+                "camera_index": self.cfg.CAMERA_INDEX 
         }
             
         try:
@@ -213,7 +216,9 @@ class SystemController:
             if 'time_delay' in new_settings: 
                 config_data['settings']['time_delay'] = float(new_settings['time_delay'])
             if 'camera_enabled' in new_settings:
-                config_data['settings']['camera_enabled'] = bool(new_settings['camera_enabled'])
+                config_data['camera']['enabled'] = bool(new_settings['camera_enabled'])
+            if 'camera_index' in new_settings:
+                config_data['camera']['index'] = int(new_settings['camera_index'])
 
             with open(config_absolute_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2, ensure_ascii=False)
@@ -327,6 +332,7 @@ class SystemController:
         self.logger.info("🟢 後端程式運作中 (按 Ctrl+C 結束)")
         
         last_ports = []
+        last_cams = []  # 新增
         try:
             while True:
                 # 🔥 每 3 秒動態偵測一次可用設備並拋給前端更新選單 🔥
@@ -337,6 +343,39 @@ class SystemController:
                         last_ports = current_ports
                 except Exception:
                     pass
+                
+                # 🔥 新增：動態偵測可用鏡頭 (僅在系統暫停/待機時偵測，避免與運行中的鏡頭搶佔資源)
+                try:
+                    if self.process is None or not self.process.running:
+                        current_cams = []
+                        
+                        # 透過 PowerShell 抓取 Windows 裝置管理員中的鏡頭名稱
+                        cam_names = []
+                        try:
+                            cmd = 'powershell "Get-PnpDevice -PresentOnly | Where-Object { $_.PNPClass -in \'Camera\', \'Image\' } | Select-Object -ExpandProperty FriendlyName"'
+                            # creationflags=subprocess.CREATE_NO_WINDOW 可隱藏呼叫 PowerShell 時閃爍的黑色終端機視窗
+                            output = subprocess.check_output(cmd, shell=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                            cam_names = [line.strip() for line in output.split('\n') if line.strip()]
+                        except Exception:
+                            pass
+
+                        for i in range(3): # 測試 0, 1, 2 三個索引值
+                            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                            if cap.isOpened():
+                                # 將索引與實際的硬體名稱打包
+                                display_name = cam_names[i] if i < len(cam_names) else f"未知鏡頭"
+                                current_cams.append({
+                                    "index": i, 
+                                    "name": f"{display_name} (Port: {i})"
+                                })
+                                cap.release()
+                                
+                        if current_cams != last_cams:
+                            db.reference(f'{self.cfg.PROJECT_NAME}/status/available_cameras').set(current_cams)
+                            last_cams = current_cams
+                except Exception:
+                    pass
+
                 time.sleep(3)
         except KeyboardInterrupt:
             self.logger.info("👋 正在關閉系統...")

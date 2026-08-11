@@ -533,7 +533,8 @@ class UIManager {
                 conc_ip: document.getElementById('set-conc-ip'),
                 conc_port: document.getElementById('set-conc-port'),
                 time_delay: document.getElementById('set-time-delay'),
-                camera_enabled: document.getElementById('set-camera-enabled')
+                camera_enabled: document.getElementById('set-camera-enabled'),
+                camera_index: document.getElementById('set-camera-index')
             },
             btnStart: document.getElementById('btn-start'),
             btnUpload: document.getElementById('btn-upload'),
@@ -1098,7 +1099,8 @@ class UIManager {
         Config.timeDelay = data.time_delay !== undefined ? data.time_delay : 0; 
 
         Config.cameraEnabled = data.camera_enabled !== undefined ? data.camera_enabled : true;
-        
+        Config.cameraIndex = data.camera_index !== undefined ? data.camera_index : 1;
+
         if (!this.els.modal.classList.contains('hidden')) this.fillSettingsInputs();
         
         if (this.els.thresholdTitle) {
@@ -1150,6 +1152,10 @@ class UIManager {
             this.els.backendInputs.camera_enabled.checked = Config.cameraEnabled;
         }
 
+        if (this.els.backendInputs.camera_index) {
+            this.els.backendInputs.camera_index.value = Config.cameraIndex;
+        }
+
         if (this.els.backendInputs.conc_serial) {
             let exists = false;
             for (let i = 0; i < this.els.backendInputs.conc_serial.options.length; i++) {
@@ -1165,6 +1171,16 @@ class UIManager {
                 this.els.backendInputs.conc_serial.selectedIndex = 0;
             }
         }
+    }
+
+    toggleCameraFields() {
+        if (!this.els.backendInputs.camera_enabled) return;
+        const isEnabled = this.els.backendInputs.camera_enabled.checked;
+        const fields = document.querySelectorAll('.camera-fields');
+        fields.forEach(el => {
+            if (isEnabled) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        });
     }
 
     renderPreviewContainer() {
@@ -1244,7 +1260,10 @@ class UIManager {
         if (this.els.backendInputs.conc_instrument) {
             this.els.backendInputs.conc_instrument.addEventListener('change', () => this.toggleInstrumentFields());
         }
-        
+        if (this.els.backendInputs.camera_enabled) {
+            this.els.backendInputs.camera_enabled.addEventListener('change', () => this.toggleCameraFields());
+        }
+
         this.els.btnSaveBackend.addEventListener('click', () => {
             const updateData = {}; 
 
@@ -1263,6 +1282,7 @@ class UIManager {
             const td = this.els.backendInputs.time_delay ? this.els.backendInputs.time_delay.value.trim() : ""; 
             
             const ce = this.els.backendInputs.camera_enabled ? this.els.backendInputs.camera_enabled.checked : true;
+            const cidx = this.els.backendInputs.camera_index ? parseInt(this.els.backendInputs.camera_index.value) : 1;
 
             if (p) updateData.project_name = p;
 
@@ -1278,6 +1298,7 @@ class UIManager {
             if (td !== "") updateData.time_delay = parseFloat(td); 
 
             updateData.camera_enabled = ce;
+            updateData.camera_index = cidx;
             
             if (Object.keys(updateData).length === 0) { alert("未輸入變更"); return; } 
             
@@ -2088,6 +2109,39 @@ async function main() {
                 opt.innerText = "未偵測到設備";
                 selectEl.appendChild(opt);
                 selectEl.value = "";
+            }
+        }
+    });
+
+    onValue(ref(db, `${Config.dbRootPath}/status/available_cameras`), (snapshot) => {
+        const cams = snapshot.val() || [];
+        const selectEl = document.getElementById('set-camera-index');
+        if (selectEl) {
+            const currentVal = selectEl.value;
+            selectEl.innerHTML = '';
+
+            if (cams.length > 0) {
+                cams.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.index;
+                    opt.innerText = c.name;
+                    selectEl.appendChild(opt);
+                });
+                
+                const availableIndices = cams.map(c => c.index);
+                if (availableIndices.includes(currentVal)) {
+                    selectEl.value = currentVal;
+                } else if (availableIndices.includes(Config.cameraIndex)) {
+                    selectEl.value = Config.cameraIndex;
+                } else {
+                    selectEl.selectedIndex = 0;
+                }
+            } else {
+                const opt = document.createElement('option');
+                opt.value = "1";
+                opt.innerText = "未偵測到鏡頭";
+                selectEl.appendChild(opt);
+                selectEl.value = "1";
             }
         }
     });

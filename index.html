@@ -171,12 +171,15 @@
                     <label>濃度延遲 (秒)</label>
                     <input type="number" id="set-time-delay" class="form-input" placeholder="例如: 3" step="1" min="0">
 
-                    <div style="grid-column: span 2; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding-top: 8px;">
-                        <span style="font-weight: 600; color: #555; font-size: 14px; white-space: nowrap;">行車紀錄器（USB 鏡頭）</span>
-                        <label class="switch" style="margin: 0;">
-                            <input type="checkbox" id="set-camera-enabled">
-                            <span class="slider round"></span>
-                        </label>
+                    <!-- 開啟時才顯示的：鏡頭下拉選單 -->
+                    <label class="camera-fields hidden">選擇鏡頭</label>
+                    <select id="set-camera-index" class="form-input camera-fields hidden">
+                        <option value="1">未偵測到鏡頭</option>
+                    </select>
+
+                    <!-- 開啟時才顯示的：紅字提示 -->
+                    <div class="camera-fields hidden" style="grid-column: span 2; text-align: right; font-size: 12px; color: gray; margin-top: -8px;">
+                        * 觸發截圖條件為紅色閾值
                     </div>
                 </div>
             </div>

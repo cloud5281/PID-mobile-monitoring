@@ -58,7 +58,7 @@ class RunProcedures:
         self.camera = None
         if self.cfg.CAMERA_ENABLED:
             self.camera = CameraReader(
-                camera_index=1, 
+                camera_index=self.cfg.CAMERA_INDEX, 
                 cooldown=5.0
             )
             self.camera.threshold = self.cfg.CAMERA_THRESHOLD
