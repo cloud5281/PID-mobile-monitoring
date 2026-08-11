@@ -42,7 +42,7 @@ const Config = (() => {
         dbRootPath: projectPath, 
         userRole: userRole,
         gpsIp: "", gpsPort: "", 
-        concInstrument: "TSI",
+        concInstrument: "PID",
         concSerial: "", concBaudrate: 9600,
         concIp: "", concPort: "",
         concUnit: "",
@@ -470,7 +470,7 @@ class UIManager {
     constructor(mapManager, db) {
         this.mapManager = mapManager;
         this.db = db;
-        this.thresholds = { a: 50, b: 100, c: 150 };
+        this.thresholds = { a: 200, b: 500, c: 800 };
         this.isRecording = false;
         this.chart = null; 
         this.sortedHistoryData = []; 
@@ -535,6 +535,7 @@ class UIManager {
                 time_delay: document.getElementById('set-time-delay'),
                 camera_index: document.getElementById('set-camera-index')
             },
+            btnPreviewCamera: document.getElementById('btn-preview-camera'),
             btnStart: document.getElementById('btn-start'),
             btnUpload: document.getElementById('btn-upload'),
             btnDownload: document.getElementById('btn-download'),
@@ -1088,7 +1089,7 @@ class UIManager {
         Config.gpsIp = data.gps_ip || ""; 
         Config.gpsPort = data.gps_port || ""; 
 
-        Config.concInstrument = data.conc_instrument || "TSI"; // 🔥 接收儀器名稱
+        Config.concInstrument = data.conc_instrument || "PID"; // 🔥 接收儀器名稱
         Config.concSerial = data.conc_serial || "";
         Config.concBaudrate = data.conc_baudrate || 9600;
         Config.concIp = data.conc_ip || "";
@@ -1097,8 +1098,8 @@ class UIManager {
 
         Config.timeDelay = data.time_delay !== undefined ? data.time_delay : 0; 
 
-        Config.cameraEnabled = data.camera_enabled !== undefined ? data.camera_enabled : true;
-        Config.cameraIndex = data.camera_index !== undefined ? data.camera_index : 1;
+        Config.cameraEnabled = data.camera_enabled !== undefined ? data.camera_enabled : false;
+        Config.cameraIndex = data.camera_index !== undefined ? data.camera_index : 0;
 
         if (!this.els.modal.classList.contains('hidden')) this.fillSettingsInputs();
         
@@ -1150,8 +1151,10 @@ class UIManager {
         if (this.els.backendInputs.camera_index) {
             if (Config.cameraEnabled) {
                 this.els.backendInputs.camera_index.value = Config.cameraIndex.toString();
+                if (this.els.btnPreviewCamera) this.els.btnPreviewCamera.disabled = false; 
             } else {
                 this.els.backendInputs.camera_index.value = "none";
+                if (this.els.btnPreviewCamera) this.els.btnPreviewCamera.disabled = true;  
             }
         }
 
@@ -1255,15 +1258,41 @@ class UIManager {
 
     bindEvents() {
         this.els.btnOpenSettings.addEventListener('click', () => { this.fillSettingsInputs(); this.els.modal.classList.remove('hidden'); });
-        this.els.btnCloseModal.addEventListener('click', () => { this.els.modal.classList.add('hidden'); });
+        this.els.btnCloseModal.addEventListener('click', () => { 
+            this.els.modal.classList.add('hidden'); 
+            set(ref(this.db, `${Config.dbRootPath}/control/command`), "preview_stop");
+        });
         if (this.els.backendInputs.conc_instrument) {
             this.els.backendInputs.conc_instrument.addEventListener('change', () => this.toggleInstrumentFields());
         }
-        if (this.els.backendInputs.camera_enabled) {
-            this.els.backendInputs.camera_enabled.addEventListener('change', () => this.toggleCameraFields());
+
+        // 1. 監聽下拉選單：有選擇鏡頭時才顯示 📷 圖示
+        if (this.els.backendInputs.camera_index) {
+            this.els.backendInputs.camera_index.addEventListener('change', (e) => {
+                if (e.target.value !== "none") {
+                    if (this.els.btnPreviewCamera) this.els.btnPreviewCamera.disabled = false;
+                } else {
+                    if (this.els.btnPreviewCamera) this.els.btnPreviewCamera.disabled = true;
+                    set(ref(this.db, `${Config.dbRootPath}/control/command`), "preview_stop");
+                }
+            });
+        }
+        
+        // 2. 監聽 📷 圖示點擊：發送預覽指令給 Controller
+        if (this.els.btnPreviewCamera) {
+            this.els.btnPreviewCamera.addEventListener('click', (e) => {
+                e.preventDefault();
+                const cidxVal = this.els.backendInputs.camera_index.value;
+                if (cidxVal !== "none") {
+                    const previewCmd = `preview_${cidxVal}`;
+                    set(ref(this.db, `${Config.dbRootPath}/control/command`), previewCmd);
+                }
+            });
         }
 
         this.els.btnSaveBackend.addEventListener('click', () => {
+            set(ref(this.db, `${Config.dbRootPath}/control/command`), "preview_stop");
+
             const updateData = {}; 
 
             const p = this.els.backendInputs.project.value.trim(); 
@@ -2077,7 +2106,7 @@ async function main() {
             isHeartbeatLost = true;
             backendState = 'offline';
             // 強制呼叫 uiManager 更新 UI，呈現斷線視覺
-            uiManager.setInterfaceMode('offline', "Controller 連線逾時", "gray", "offline");
+            uiManager.setInterfaceMode('offline', "未連接 Controller", "gray", "offline");
             uiManager.updateRealtimeData({});
             uiManager.updateWindCompass({}); 
         }
@@ -2149,6 +2178,12 @@ async function main() {
                 }
             } else {
                 if (currentVal !== "none") selectEl.value = "none";
+            }
+
+            const uiBtn = document.getElementById('btn-preview-camera');
+            if (uiBtn) {
+                if (selectEl.value !== "none") uiBtn.disabled = false; 
+                else uiBtn.disabled = true;                          
             }
         }
     });

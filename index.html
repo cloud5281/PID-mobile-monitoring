@@ -62,27 +62,27 @@
                 <div class="th-grid-row">
                     <span class="th-badge bg-green">綠</span>
                     <span></span> <span class="th-symbol">&lt;</span>
-                    <input type="number" id="val-a" value="50" class="th-input">
+                    <input type="number" id="val-a" value="200" class="th-input">
                 </div>
 
                 <div class="th-grid-row">
                     <span class="th-badge bg-yellow">黃</span>
                     <span id="disp-a" class="th-start-val">200</span>
                     <span class="th-symbol">~</span>
-                    <input type="number" id="val-b" value="100" class="th-input">
+                    <input type="number" id="val-b" value="500" class="th-input">
                 </div>
 
                 <div class="th-grid-row">
                     <span class="th-badge bg-orange">橙</span>
-                    <span id="disp-b" class="th-start-val">350</span>
+                    <span id="disp-b" class="th-start-val">500</span>
                     <span class="th-symbol">~</span>
-                    <input type="number" id="val-c" value="150" class="th-input">
+                    <input type="number" id="val-c" value="800" class="th-input">
                 </div>
 
                 <div class="th-grid-row">
                     <span class="th-badge bg-red">紅</span>
                     <span></span> <span class="th-symbol">&ge;</span>
-                    <span id="disp-c" class="th-static-end">500</span>
+                    <span id="disp-c" class="th-static-end">800</span>
                 </div>
 
                 <div class="msg-container">
@@ -171,13 +171,14 @@
                     <label>濃度延遲 (秒)</label>
                     <input type="number" id="set-time-delay" class="form-input" placeholder="例如: 3" step="1" min="0">
 
-                    <label>行車紀錄器 (USB 鏡頭)</label>
-                    <select id="set-camera-index" class="form-input">
-                        <option value="none">無 (不開啟鏡頭)</option>
-                    </select>
-                    
-                    <div style="grid-column: span 2; text-align: right; font-size: 12px; color: gray; margin-top: -8px;">
-                        * 開啟時，觸發截圖條件為紅色閾值
+                    <label>行車紀錄器</label>
+                    <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                        <select id="set-camera-index" class="form-input" style="flex: 1;">
+                            <option value="none">無 (不開啟鏡頭)</option>
+                        </select>
+                        <button id="btn-preview-camera" class="btn-icon" type="button" title="開啟預覽" style="padding: 4px 8px; font-size: 14px;" disabled>
+                            📷
+                        </button>
                     </div>
                 </div>
             </div>

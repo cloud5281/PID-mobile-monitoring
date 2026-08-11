@@ -1,14 +1,18 @@
+import os
+os.environ["OPENCV_LOG_LEVEL"] = "FATAL"
+
 import logging
 import threading
 import time
 import firebase_admin
 import webbrowser
 import json
-import os
+import numpy as np
 import serial.tools.list_ports
 import cv2
 import subprocess
 
+from pygrabber.dshow_graph import FilterGraph
 from firebase_admin import credentials, db, exceptions
 from Config import Config
 from Process import RunProcedures
@@ -19,11 +23,11 @@ class SystemController:
         self.logger = self._setup_logger()
         self.process = None
         self.process_thread = None
+        self.preview_camera = None
         
         self.cmd_listener = None
         self.config_listener = None
         self.threshold_listener = None
-        self.preview_camera = None
 
         try:
             self.cfg = Config(self.config_file)
@@ -72,16 +76,52 @@ class SystemController:
 
     def _start_camera_preview(self, index):
         self._stop_camera_preview()
-        from Procedure.CameraReader import CameraReader
-        # 設定 cooldown=999 避免預覽時拍照，單純顯示畫面
-        self.preview_camera = CameraReader(camera_index=index, cooldown=999)
-        self.logger.info(f"📷 啟動鏡頭預覽視窗 (索引: {index})")
-        self.preview_camera.run()
+        self.preview_running = True
+        self.preview_thread = threading.Thread(target=self._preview_loop, args=(index,), daemon=True)
+        self.preview_thread.start()
 
     def _stop_camera_preview(self):
-        if hasattr(self, 'preview_camera') and self.preview_camera:
-            self.preview_camera.stop()
-            self.preview_camera = None
+        self.preview_running = False
+        if hasattr(self, 'preview_thread') and self.preview_thread:
+            self.preview_thread.join(timeout=1.0)
+            self.preview_thread = None
+
+    def _preview_loop(self, index):
+        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            self.logger.error(f"預覽失敗：無法開啟鏡頭 {index}")
+            self.preview_running = False
+            return
+        win_name = "Preview Mode"
+        
+        # 使用 WINDOW_NORMAL，保留所有預設的 Windows 控制項（包含縮放與右上角的叉叉）
+        cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+
+        while self.preview_running:
+            # 偵測是否被使用者按右上角的「X」關閉
+            try:
+                # WND_PROP_VISIBLE 在視窗開啟時為 1，被手動關閉時會變為 0 或小於 0
+                if cv2.getWindowProperty(win_name, cv2.WND_PROP_VISIBLE) < 1:
+                    self.preview_running = False
+                    break
+            except Exception:
+                self.preview_running = False
+                break
+
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.1)
+                continue
+
+            cv2.imshow(win_name, frame)
+            cv2.waitKey(30)
+
+        cap.release()
+        try:
+            cv2.destroyWindow(win_name)
+            cv2.waitKey(1)
+        except Exception:
+            pass
 
     def _push_current_config_to_firebase(self):
         data = {
@@ -266,12 +306,6 @@ class SystemController:
                     self.logger.info("🔄 偵測到參數變更，將重新整理以套用設定...")
                     self.stop_process()
                     self.start_process()
-                else:
-                    # 🔥 一般儲存參數後，若為待機狀態且開啟鏡頭，彈出預覽
-                    if self.cfg.CAMERA_ENABLED:
-                        self._start_camera_preview(self.cfg.CAMERA_INDEX)
-                    else:
-                        self._stop_camera_preview()
 
             self._push_current_config_to_firebase()
 
@@ -282,7 +316,7 @@ class SystemController:
         if event.data is None or event.data == "": return
         command = str(event.data).lower()
         
-        if command in ['start', 'stop']:
+        if command in ['start', 'stop', 'preview_stop'] or command.startswith('preview_'):
             try:
                 db.reference(f'{self.cfg.PROJECT_NAME}/control/command').set("")
             except: pass
@@ -293,6 +327,55 @@ class SystemController:
         elif command == "stop":
             self.logger.info(f"📩 收到指令: {command}")
             self.stop_process()
+        elif command == "preview_stop":
+            self._stop_camera_preview()
+        elif command.startswith("preview_"):
+            try:
+                index = int(command.split("_")[1])
+                # 若已經在預覽同一顆鏡頭，則關閉 (Toggle 行為)
+                if hasattr(self, 'preview_camera') and self.preview_camera and self.preview_camera.running and self.preview_camera.camera_index == index:
+                    self._stop_camera_preview()
+                else:
+                    self._start_camera_preview(index)
+            except Exception as e:
+                self.logger.error(f"預覽指令處理失敗: {e}")
+
+    def _hardware_scan_loop(self):
+        last_ports = []
+        last_cams = []
+        while True:
+            # 1. 偵測 COM Ports
+            try:
+                current_ports = [port.device for port in serial.tools.list_ports.comports()]
+                if current_ports != last_ports:
+                    db.reference(f'{self.cfg.PROJECT_NAME}/status/available_ports').set(current_ports)
+                    last_ports = current_ports
+            except Exception:
+                pass
+            
+            # 2. 偵測 USB 鏡頭 (僅在系統暫停/待機時偵測)
+            try:
+                if self.process is None or not self.process.running:
+                    current_cams = []
+                    cam_names = []
+                    try:
+                        graph = FilterGraph()
+                        cam_names = graph.get_input_devices()
+
+                        for i, name in enumerate(cam_names):
+                            current_cams.append({
+                                "index": i, 
+                                "name": f"{name}"
+                            })
+                    except Exception as e:
+                        self.logger.warning(f"獲取視訊鏡頭清單失敗: {e}")
+                            
+                    if current_cams != last_cams:
+                        db.reference(f'{self.cfg.PROJECT_NAME}/status/available_cameras').set(current_cams)
+                        last_cams = current_cams
+            except Exception:
+                pass
+            time.sleep(3)
 
     def start_process(self):
         if self.process is not None and self.process.running:
@@ -337,6 +420,8 @@ class SystemController:
         self.logger.info("✅ 後端程序已停止")
 
     def run(self):
+        threading.Thread(target=self._hardware_scan_loop, daemon=True).start()
+
         url = (f"{self.cfg.MAP_URL}?"
                f"id={self.cfg.DB_ID}&"
                f"path={self.cfg.PROJECT_NAME}&"
@@ -356,52 +441,9 @@ class SystemController:
         
         self.logger.info("🟢 後端程式運作中 (按 Ctrl+C 結束)")
         
-        last_ports = []
-        last_cams = []  # 新增
         try:
             while True:
-                # 🔥 每 3 秒動態偵測一次可用設備並拋給前端更新選單 🔥
-                try:
-                    current_ports = [port.device for port in serial.tools.list_ports.comports()]
-                    if current_ports != last_ports:
-                        db.reference(f'{self.cfg.PROJECT_NAME}/status/available_ports').set(current_ports)
-                        last_ports = current_ports
-                except Exception:
-                    pass
-                
-                # 🔥 新增：動態偵測可用鏡頭 (僅在系統暫停/待機時偵測，避免與運行中的鏡頭搶佔資源)
-                try:
-                    if self.process is None or not self.process.running:
-                        current_cams = []
-                        
-                        # 透過 PowerShell 抓取 Windows 裝置管理員中的鏡頭名稱
-                        cam_names = []
-                        try:
-                            cmd = 'powershell "Get-PnpDevice -PresentOnly | Where-Object { $_.PNPClass -in \'Camera\', \'Image\' } | Select-Object -ExpandProperty FriendlyName"'
-                            # creationflags=subprocess.CREATE_NO_WINDOW 可隱藏呼叫 PowerShell 時閃爍的黑色終端機視窗
-                            output = subprocess.check_output(cmd, shell=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                            cam_names = [line.strip() for line in output.split('\n') if line.strip()]
-                        except Exception:
-                            pass
-
-                        for i in range(3): # 測試 0, 1, 2 三個索引值
-                            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                            if cap.isOpened():
-                                # 將索引與實際的硬體名稱打包
-                                display_name = cam_names[i] if i < len(cam_names) else f"未知鏡頭"
-                                current_cams.append({
-                                    "index": i, 
-                                    "name": f"{display_name} (Port: {i})"
-                                })
-                                cap.release()
-                                
-                        if current_cams != last_cams:
-                            db.reference(f'{self.cfg.PROJECT_NAME}/status/available_cameras').set(current_cams)
-                            last_cams = current_cams
-                except Exception:
-                    pass
-
-                time.sleep(3)
+                time.sleep(1)
         except KeyboardInterrupt:
             self.logger.info("👋 正在關閉系統...")
         finally:
