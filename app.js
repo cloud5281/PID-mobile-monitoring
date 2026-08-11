@@ -533,7 +533,6 @@ class UIManager {
                 conc_ip: document.getElementById('set-conc-ip'),
                 conc_port: document.getElementById('set-conc-port'),
                 time_delay: document.getElementById('set-time-delay'),
-                camera_enabled: document.getElementById('set-camera-enabled'),
                 camera_index: document.getElementById('set-camera-index')
             },
             btnStart: document.getElementById('btn-start'),
@@ -1148,12 +1147,12 @@ class UIManager {
         if (this.els.backendInputs.conc_port) this.els.backendInputs.conc_port.value = Config.concPort;
         if (this.els.backendInputs.time_delay) this.els.backendInputs.time_delay.value = Config.timeDelay;
         
-        if (this.els.backendInputs.camera_enabled) {
-            this.els.backendInputs.camera_enabled.checked = Config.cameraEnabled;
-        }
-
         if (this.els.backendInputs.camera_index) {
-            this.els.backendInputs.camera_index.value = Config.cameraIndex;
+            if (Config.cameraEnabled) {
+                this.els.backendInputs.camera_index.value = Config.cameraIndex.toString();
+            } else {
+                this.els.backendInputs.camera_index.value = "none";
+            }
         }
 
         if (this.els.backendInputs.conc_serial) {
@@ -1281,8 +1280,11 @@ class UIManager {
             
             const td = this.els.backendInputs.time_delay ? this.els.backendInputs.time_delay.value.trim() : ""; 
             
-            const ce = this.els.backendInputs.camera_enabled ? this.els.backendInputs.camera_enabled.checked : true;
-            const cidx = this.els.backendInputs.camera_index ? parseInt(this.els.backendInputs.camera_index.value) : 1;
+            const cidxVal = this.els.backendInputs.camera_index ? this.els.backendInputs.camera_index.value : "none";
+            // 如果不是 none，代表啟用
+            const ce = (cidxVal !== "none");
+            // 如果啟用，就轉為數字，否則預設給 1 即可
+            const cidx = ce ? parseInt(cidxVal) : 1;
 
             if (p) updateData.project_name = p;
 
@@ -2120,6 +2122,11 @@ async function main() {
             const currentVal = selectEl.value;
             selectEl.innerHTML = '';
 
+            const optNone = document.createElement('option');
+            optNone.value = "none";
+            optNone.innerText = "無 (不開啟鏡頭)";
+            selectEl.appendChild(optNone);
+
             if (cams.length > 0) {
                 cams.forEach(c => {
                     const opt = document.createElement('option');
@@ -2128,20 +2135,20 @@ async function main() {
                     selectEl.appendChild(opt);
                 });
                 
-                const availableIndices = cams.map(c => c.index);
-                if (availableIndices.includes(currentVal)) {
-                    selectEl.value = currentVal;
-                } else if (availableIndices.includes(Config.cameraIndex)) {
-                    selectEl.value = Config.cameraIndex;
+                if (currentVal === "none") {
+                    selectEl.value = "none";
                 } else {
-                    selectEl.selectedIndex = 0;
+                    const availableIndices = cams.map(c => c.index.toString());
+                    if (availableIndices.includes(currentVal)) {
+                        selectEl.value = currentVal;
+                    } else if (Config.cameraEnabled && availableIndices.includes(Config.cameraIndex.toString())) {
+                        selectEl.value = Config.cameraIndex.toString();
+                    } else {
+                        selectEl.value = "none";
+                    }
                 }
             } else {
-                const opt = document.createElement('option');
-                opt.value = "1";
-                opt.innerText = "未偵測到鏡頭";
-                selectEl.appendChild(opt);
-                selectEl.value = "1";
+                if (currentVal !== "none") selectEl.value = "none";
             }
         }
     });

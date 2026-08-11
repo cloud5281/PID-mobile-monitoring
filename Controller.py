@@ -23,6 +23,7 @@ class SystemController:
         self.cmd_listener = None
         self.config_listener = None
         self.threshold_listener = None
+        self.preview_camera = None
 
         try:
             self.cfg = Config(self.config_file)
@@ -68,6 +69,19 @@ class SystemController:
             self.logger.info("📡 Controller 已連線至 Firebase")
         except Exception as e:
             self.logger.error(f"❌ Firebase 連線失敗: {e}")
+
+    def _start_camera_preview(self, index):
+        self._stop_camera_preview()
+        from Procedure.CameraReader import CameraReader
+        # 設定 cooldown=999 避免預覽時拍照，單純顯示畫面
+        self.preview_camera = CameraReader(camera_index=index, cooldown=999)
+        self.logger.info(f"📷 啟動鏡頭預覽視窗 (索引: {index})")
+        self.preview_camera.run()
+
+    def _stop_camera_preview(self):
+        if hasattr(self, 'preview_camera') and self.preview_camera:
+            self.preview_camera.stop()
+            self.preview_camera = None
 
     def _push_current_config_to_firebase(self):
         data = {
@@ -242,11 +256,22 @@ class SystemController:
                         'state': 'stopped',
                         'message': '切換完畢，後端程式已就緒'
                     })
+
+                    if self.cfg.CAMERA_ENABLED:
+                        self._start_camera_preview(self.cfg.CAMERA_INDEX)
+                    else:
+                        self._stop_camera_preview()
             else:
                 if self.process and self.process.running:
                     self.logger.info("🔄 偵測到參數變更，將重新整理以套用設定...")
                     self.stop_process()
                     self.start_process()
+                else:
+                    # 🔥 一般儲存參數後，若為待機狀態且開啟鏡頭，彈出預覽
+                    if self.cfg.CAMERA_ENABLED:
+                        self._start_camera_preview(self.cfg.CAMERA_INDEX)
+                    else:
+                        self._stop_camera_preview()
 
             self._push_current_config_to_firebase()
 
@@ -272,7 +297,7 @@ class SystemController:
     def start_process(self):
         if self.process is not None and self.process.running:
             return 
-        
+        self._stop_camera_preview()
         try:
             current_cfg = Config(self.config_file)
             self.process = RunProcedures(current_cfg)
