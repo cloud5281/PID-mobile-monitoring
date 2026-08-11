@@ -59,7 +59,7 @@ class RunProcedures:
         if self.cfg.CAMERA_ENABLED:
             self.camera = CameraReader(
                 camera_index=self.cfg.CAMERA_INDEX, 
-                cooldown=5.0
+                cooldown=1.0
             )
             self.camera.threshold = self.cfg.CAMERA_THRESHOLD
             self.camera.save_dir = f"events_photos/{self.cfg.PROJECT_NAME}"

@@ -26,8 +26,12 @@ const Config = (() => {
         dynamicKey = localStorage.getItem('saved_api_key');
     }
     if (!dynamicKey) {
-        dynamicKey = prompt("未偵測到 API Key，請輸入 Firebase API Key:");
-        if (dynamicKey) localStorage.setItem('saved_api_key', dynamicKey);
+        if (userRole === 'admin') {
+            dynamicKey = prompt("未偵測到 API Key，請輸入 Firebase API Key:");
+            if (dynamicKey) localStorage.setItem('saved_api_key', dynamicKey);
+        } else {
+            dynamicKey = "viewer_mode_dummy_key"; 
+        }
     }
 
     let cleanUrl = window.location.pathname + '?path=' + projectPath; 
