@@ -274,14 +274,18 @@ class MapManager {
                 });
                 html += `</div>`;
             }
-
-            html += `<div style="display: flex; gap: 6px;">`;
-            html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 2; padding:6px; font-size:13px; background:#4a4a4a; color:#fff; border:none; border-radius:4px; cursor:pointer;">編輯</button>`;
-            html += `<button onclick="document.dispatchEvent(new CustomEvent('delete-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 1; padding:6px; font-size:13px; background:#dc3545; color:#fff; border:none; border-radius:4px; cursor:pointer;">刪除</button>`;
-            html += `</div>`;
+            
+            if (Config.userRole === 'admin') {
+                html += `<div style="display: flex; gap: 6px;">`;
+                html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 2; padding:6px; font-size:13px; background:#4a4a4a; color:#fff; border:none; border-radius:4px; cursor:pointer;">編輯</button>`;
+                html += `<button onclick="document.dispatchEvent(new CustomEvent('delete-event-cmd', {detail: '${data.timestamp}'}))" style="flex: 1; padding:6px; font-size:13px; background:#dc3545; color:#fff; border:none; border-radius:4px; cursor:pointer;">刪除</button>`;
+                html += `</div>`;
+            }
 
         } else {
-            html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="width:100%; padding:6px; font-size:13px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">新增註記</button>`;
+            if (Config.userRole === 'admin') {
+                html += `<button onclick="document.dispatchEvent(new CustomEvent('edit-event-cmd', {detail: '${data.timestamp}'}))" style="width:100%; padding:6px; font-size:13px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">新增註記</button>`;
+            }
         }
         
         html += `</div></div>`;
