@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RunProcedures:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.timeout_limit = 3000
+        self.timeout_limit = 60
         self.merger_thread = None
         self.running = False
         self._is_stopping = False

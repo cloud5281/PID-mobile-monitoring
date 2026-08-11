@@ -605,6 +605,10 @@ class UIManager {
         if (window.innerWidth <= 768 && this.els.mainPanel) {
             this.els.mainPanel.classList.add('collapsed');
         }
+
+        if (window.innerWidth <= 768 && this.els.windPanel) {
+            this.els.windPanel.classList.add('is-collapsed');
+        }
     }
 
     // 根據下拉選單(instrument)切換顯示/隱藏
@@ -2077,9 +2081,9 @@ async function main() {
             
             if (isInitialLoad) {
                 isInitialLoad = false;
-                // 初始檢查：如果 Firebase 上的心跳時間已經超過 30 秒，判定為殭屍狀態
-                // (給予 30 秒寬容值是為了吸收前後端電腦的 NTP 時鐘誤差)
-                if (now - backendTimestamp > 60000) {
+                // 初始檢查：如果 Firebase 上的心跳時間已經超過 180 秒，判定為殭屍狀態
+                // (給予 180 秒寬容值是為了吸收前後端電腦的 NTP 時鐘誤差)
+                if (now - backendTimestamp > 180000) {
                     // console.warn("偵測到前次未正常關閉的殘留狀態，判定為離線。");
                     isHeartbeatLost = true;
                     backendState = 'offline';
@@ -2108,9 +2112,9 @@ async function main() {
         const now = Date.now();
         const diff = now - lastHeartbeatReceivedTime;
 
-        // 若超過 30 秒沒收到心跳，且當前狀態不是 offline 或是 stopped
+        // 若超過 180 秒沒收到心跳，且當前狀態不是 offline 或是 stopped
         // 判定為「非正常關閉 (直接關閉 IDE 或斷線)」
-        if (diff > 30000 && !isHeartbeatLost && backendState !== 'offline') {
+        if (diff > 180000 && !isHeartbeatLost && backendState !== 'offline') {
             isHeartbeatLost = true;
             backendState = 'offline';
             // 強制呼叫 uiManager 更新 UI，呈現斷線視覺
@@ -2118,7 +2122,7 @@ async function main() {
             uiManager.updateRealtimeData({});
             uiManager.updateWindCompass({}); 
         }
-    }, 5000); 
+    }, 30000); 
 
     onValue(ref(db, `${Config.dbRootPath}/status/available_ports`), (snapshot) => {
         const ports = snapshot.val() || [];

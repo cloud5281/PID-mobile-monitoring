@@ -1,7 +1,7 @@
 body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
 
 /* 地圖全螢幕 */
-#map { height: 100vh; width: 100%; z-index: 1; }
+#map { height: 100dvh; width: 100%; z-index: 1; }
 
 /* 隱藏數字輸入框箭頭 (排除濃度延遲欄位) */
 input[type=number]:not(#set-time-delay)::-webkit-outer-spin-button,
@@ -362,5 +362,55 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
         top: 80px; 
         left: 10px;
         min-width: auto;
+    }
+
+    #wind-compass-panel {
+        top: auto !important;
+        left: auto !important;
+        right: 10px !important;
+        bottom: 100px !important; /* 拉高高度，避開右下角的圖層切換鈕與底部控制列 */
+        z-index: 1000;
+        transform-origin: bottom right; /* 確保展開時是向左上角延展，不往下擋按鈕 */
+    }
+
+    /* 縮合狀態下的外觀調整：變成一個大圓形按鈕 */
+    #wind-compass-panel.is-collapsed {
+        width: 56px !important;
+        height: 56px !important;
+        min-width: unset !important; /* 覆寫電腦版的 min-width，確保是完美的圓 */
+        border-radius: 50% !important;
+        padding: 0 !important;
+        background: #455a64 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+    }
+
+    /* 隱藏縮合時不需要的標題與文字資訊 */
+    #wind-compass-panel.is-collapsed .wind-header,
+    #wind-compass-panel.is-collapsed .wind-info {
+        display: none !important;
+    }
+
+    /* 放滿容器並置中 */
+    #wind-compass-panel.is-collapsed .wind-icon-container {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: none !important; /* 移除內部容器陰影，改用外層陰影 */
+        background: transparent !important; /* 讓背景透明，融入白色大圓底 */
+    }
+
+    /* 放大風向 SVG 圖示，並換成有對比的顏色 */
+    #wind-compass-panel.is-collapsed .wind-icon-container svg {
+        width: 34px !important;
+        height: 34px !important;
+        color: #ffffff !important;
     }
 }
