@@ -1411,9 +1411,23 @@ class UIManager {
             }
         });
 
+        const requireValidApiKey = (callback) => {
+            if (Config.apiKey === "viewer_mode_dummy_key") {
+                const newKey = prompt("執行此操作需要權限，請輸入有效的 Firebase API Key：");
+                if (newKey) {
+                    localStorage.setItem('saved_api_key', newKey);
+                    alert("設定已儲存，將為您重新載入頁面以套用連線。");
+                    location.reload();
+                }
+            } else {
+                // 如果已經有真的 API Key，就直接執行原本的動作
+                callback();
+            }
+        };
+
         this.els.btnStart.addEventListener('click', () => this.toggleRecordingCommand());
-        this.els.btnUpload.addEventListener('click', () => this.triggerUploadProcess());
-        this.els.btnDownload.addEventListener('click', () => this.downloadHistoryAsCSV());
+        this.els.btnUpload.addEventListener('click', () => requireValidApiKey(() => this.triggerUploadProcess()));
+        this.els.btnDownload.addEventListener('click', () => requireValidApiKey(() => this.downloadHistoryAsCSV()));
 
         if (this.els.toggleBtn && this.els.mainPanel) {
             this.els.toggleBtn.addEventListener('click', () => {
