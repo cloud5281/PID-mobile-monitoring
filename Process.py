@@ -40,6 +40,7 @@ class RunProcedures:
         self.conc.conc_queue = self.cfg.CONC_QUEUE
 
         self.wind = WindReader()
+        self.wind.update_interval = 300
         self.wind.api_key = self.cfg.WIND_API_KEY
         self.wind.wind_queue = self.cfg.WIND_QUEUE
 

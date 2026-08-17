@@ -75,7 +75,17 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 .info-panel.collapsed {
     height: auto;
     max-height: none !important; 
-    overflow: visible;
+    overflow: hidden;
+    min-width: fit-content; 
+    width: fit-content;
+}
+
+.info-panel.collapsed .panel-header-row {
+    border-bottom: none;
+}
+
+.info-panel.collapsed #btn-open-settings {
+    display: none;
 }
 
 /* 按鈕與圖示樣式 */
