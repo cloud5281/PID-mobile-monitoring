@@ -95,10 +95,10 @@ class RunProcedures:
             'lon': None
         }
 
-        SENSOR_TIMEOUT_SEC = 2.0
+        SENSOR_TIMEOUT_SEC = 5.0
         last_gps_arrival_time = time.time()
         last_upload_time = time.time()
-        GPS_GRACE_PERIOD = 2.0 
+        GPS_GRACE_PERIOD = 5.0 
         last_processed_ts = ""
         
         # 🔥 新增：儲存 GPS 資料的緩衝區，用於時間延遲匹配
@@ -107,7 +107,7 @@ class RunProcedures:
 
         while self.running:
             try:
-                # --- A1. 更新濃度緩存 ---
+                # --- A1. 更新濃度緩存 ---那
                 conc_alive = True
                 while not self.conc.conc_queue.empty():
                     try:
@@ -216,12 +216,12 @@ class RunProcedures:
                             "status": "GPS Lost",
                             "conc": latest_conc_cache['val'],
                             "conc_unit": latest_conc_cache['unit'],
-                            "station_name": None,
-                            "wind_time": None,
-                            "wind_speed": None,
-                            "wind_dir": None,
-                            "temperature": None, 
-                            "humidity": None     
+                            "station_name": latest_wind_cache.get('測站名稱', ''),
+                            "wind_time": latest_wind_cache.get('觀測時間', ''),
+                            "wind_speed": latest_wind_cache.get('風速'),
+                            "wind_dir": latest_wind_cache.get('風向'),
+                            "temperature": latest_wind_cache.get('溫度'), 
+                            "humidity": latest_wind_cache.get('濕度')     
                         }
                         
                         time_diff = current_time - latest_conc_cache['last_update']

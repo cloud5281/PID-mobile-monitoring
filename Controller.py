@@ -344,37 +344,38 @@ class SystemController:
         last_ports = []
         last_cams = []
         while True:
-            # 1. 偵測 COM Ports
-            try:
-                current_ports = [port.device for port in serial.tools.list_ports.comports()]
-                if current_ports != last_ports:
-                    db.reference(f'{self.cfg.PROJECT_NAME}/status/available_ports').set(current_ports)
-                    last_ports = current_ports
-            except Exception:
-                pass
-            
-            # 2. 偵測 USB 鏡頭 (僅在系統暫停/待機時偵測)
-            try:
-                if self.process is None or not self.process.running:
-                    current_cams = []
-                    cam_names = []
-                    try:
-                        graph = FilterGraph()
-                        cam_names = graph.get_input_devices()
+            if self.process is None or not self.process.running:
+                # 1. 偵測 COM Ports
+                try:
+                    current_ports = [port.device for port in serial.tools.list_ports.comports()]
+                    if current_ports != last_ports:
+                        db.reference(f'{self.cfg.PROJECT_NAME}/status/available_ports').set(current_ports)
+                        last_ports = current_ports
+                except Exception:
+                    pass
+                
+                # 2. 偵測 USB 鏡頭 (僅在系統暫停/待機時偵測)
+                try:
+                    if self.process is None or not self.process.running:
+                        current_cams = []
+                        cam_names = []
+                        try:
+                            graph = FilterGraph()
+                            cam_names = graph.get_input_devices()
 
-                        for i, name in enumerate(cam_names):
-                            current_cams.append({
-                                "index": i, 
-                                "name": f"{name}"
-                            })
-                    except Exception as e:
-                        self.logger.warning(f"獲取視訊鏡頭清單失敗: {e}")
-                            
-                    if current_cams != last_cams:
-                        db.reference(f'{self.cfg.PROJECT_NAME}/status/available_cameras').set(current_cams)
-                        last_cams = current_cams
-            except Exception:
-                pass
+                            for i, name in enumerate(cam_names):
+                                current_cams.append({
+                                    "index": i, 
+                                    "name": f"{name}"
+                                })
+                        except Exception as e:
+                            self.logger.warning(f"獲取視訊鏡頭清單失敗: {e}")
+                                
+                        if current_cams != last_cams:
+                            db.reference(f'{self.cfg.PROJECT_NAME}/status/available_cameras').set(current_cams)
+                            last_cams = current_cams
+                except Exception:
+                    pass
             time.sleep(3)
 
     def start_process(self):
