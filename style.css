@@ -27,6 +27,7 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
     
     /* 寬度設定：電腦版 350px */
     min-width: 350px;
+    width: 350px;
     
     /* 電腦版高度限制 */
     max-height: 75vh !important;
