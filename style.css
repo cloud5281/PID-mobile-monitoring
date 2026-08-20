@@ -376,11 +376,11 @@ input[type=number]:not(#set-time-delay)::-webkit-inner-spin-button {
 
     #wind-compass-panel {
         top: auto !important;
-        left: auto !important;
-        right: 10px !important;
-        bottom: 100px !important; /* 拉高高度，避開右下角的圖層切換鈕與底部控制列 */
+        right: auto !important;
+        left: 10px !important;
+        bottom: 100px !important; /* 拉高高度，避開左下角的圖層切換鈕與底部控制列 */
         z-index: 1000;
-        transform-origin: bottom right; /* 確保展開時是向左上角延展，不往下擋按鈕 */
+        transform-origin: bottom left; /* 確保展開時是向右上角延展，不往下擋按鈕 */
     }
 
     /* 縮合狀態下的外觀調整：變成一個大圓形按鈕 */

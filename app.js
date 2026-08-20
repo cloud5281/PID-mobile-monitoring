@@ -73,25 +73,27 @@ class MapManager {
             layers: [osmLayer],
             zoomControl: true
         });
+
         this.marker = L.marker([0, 0], { 
             icon: L.icon({
                 iconUrl: './image/man-walking.png',
                 iconSize: [40, 40], iconAnchor: [20, 38], popupAnchor: [0, -40]
             }) 
         }).addTo(this.map);
+        this.historyLayer = L.layerGroup().addTo(this.map);
 
         const baseMaps = {
             "一般地圖": osmLayer,
             "衛星地圖": satelliteLayer
         };
         const overlayMaps = {
-            "顯示目前位置 (小人)": this.marker
+            "顯示目前位置 (小人)": this.marker,
+            "顯示濃度點位（軌跡）": this.historyLayer
         };
 
-        L.control.layers(baseMaps, overlayMaps, { position: 'bottomright' }).addTo(this.map);
+        L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft' }).addTo(this.map);
         
         this.pathLine = L.polyline([], {color: 'blue', weight: 4}); 
-        this.historyLayer = L.layerGroup().addTo(this.map);
         this.coordsArray = [];
         this.allMarkers = [];
         
